@@ -1,0 +1,15 @@
+# Simplified requirements for Python 3.12 compatibility
+streamlit
+pandas
+numpy
+yfinance
+plotly
+matplotlib
+seaborn
+scikit-learn
+xgboost
+lightgbm
+pandas-ta
+python-dotenv
+schedule
+joblib

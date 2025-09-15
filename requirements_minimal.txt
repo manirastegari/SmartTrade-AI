@@ -1,0 +1,9 @@
+# Minimal requirements that work on macOS
+streamlit
+pandas
+numpy
+yfinance
+plotly
+matplotlib
+scikit-learn
+xgboost
