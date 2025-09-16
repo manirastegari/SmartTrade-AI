@@ -166,32 +166,73 @@ class AdvancedTradingAnalyzer:
                 prediction_result, overall_score, technical_score, fundamental_score, sentiment_score, sector_score, analyst_score
             )
             
+            # Professional upside/downside calculation
+            current_price = df['Close'].iloc[-1]
+            
+            # Get analyst price target
+            analyst_target = analyst.get('price_target', 0)
+            
+            # Calculate multiple price targets
+            technical_target = current_price * (1 + prediction_result['prediction'] / 100)
+            
+            # Combine targets (professional approach)
+            if analyst_target > 0:
+                combined_target = (technical_target * 0.6 + analyst_target * 0.4)
+            else:
+                combined_target = technical_target
+            
+            # Calculate upside/downside potential
+            upside_potential = ((combined_target - current_price) / current_price) * 100
+            
+            # Professional risk-adjusted target
+            risk_multiplier = 1.0
+            if analysis['risk_level'] == 'High':
+                risk_multiplier = 0.8
+            elif analysis['risk_level'] == 'Low':
+                risk_multiplier = 1.2
+            
+            adjusted_upside = upside_potential * risk_multiplier
+            
+            # Calculate stop loss (professional approach)
+            stop_loss_price = current_price * 0.95  # 5% stop loss
+            downside_risk = -5.0  # Maximum acceptable loss
+            
             return {
-                'symbol': symbol,
-                'current_price': df['Close'].iloc[-1],
-                'price_change_1d': df['Close'].pct_change().iloc[-1] * 100,
-                'volume': df['Volume'].iloc[-1],
-                'market_cap': info.get('marketCap', 0),
-                'pe_ratio': info.get('trailingPE', 0),
-                'sector': info.get('sector', 'Unknown'),
-                'prediction': prediction_result['prediction'],
-                'confidence': prediction_result['confidence'],
-                'recommendation': recommendation['action'],
-                'action': recommendation['action'],
-                'risk_level': analysis['risk_level'],
-                'signals': signals,
-                'technical_score': technical_score,
-                'fundamental_score': fundamental_score,
-                'sentiment_score': sentiment_score,
-                'momentum_score': momentum_score,
-                'volume_score': volume_score,
-                'volatility_score': volatility_score,
-                'sector_score': sector_score,
-                'analyst_score': analyst_score,
-                'overall_score': overall_score,
-                'analysis': analysis,
-                'last_updated': datetime.now()
-            }
+                    'symbol': symbol,
+                    'current_price': current_price,
+                    'price_change_1d': df['Close'].pct_change().iloc[-1] * 100,
+                    'volume': df['Volume'].iloc[-1],
+                    'market_cap': info.get('marketCap', 0),
+                    'pe_ratio': info.get('trailingPE', 0),
+                    'sector': info.get('sector', 'Unknown'),
+                    'prediction': prediction_result['prediction'],
+                    'confidence': prediction_result['confidence'],
+                    'recommendation': recommendation['action'],
+                    'action': recommendation['action'],
+                    'risk_level': analysis['risk_level'],
+                    'signals': signals,
+                    'technical_score': technical_score,
+                    'fundamental_score': fundamental_score,
+                    'sentiment_score': sentiment_score,
+                    'momentum_score': momentum_score,
+                    'volume_score': volume_score,
+                    'volatility_score': volatility_score,
+                    'sector_score': sector_score,
+                    'analyst_score': analyst_score,
+                    'overall_score': overall_score,
+                    'analysis': analysis,
+                    # Professional additions
+                    'upside_potential': upside_potential,
+                    'adjusted_upside': adjusted_upside,
+                    'downside_risk': downside_risk,
+                    'target_price': combined_target,
+                    'analyst_target': analyst_target,
+                    'technical_target': technical_target,
+                    'stop_loss_price': stop_loss_price,
+                    'earnings_quality': earnings.get('earnings_quality_score', 50),
+                    'analyst_confidence': analyst.get('analyst_confidence', 50),
+                    'last_updated': datetime.now()
+                }
             
         except Exception as e:
             print(f"Error analyzing {symbol}: {e}")

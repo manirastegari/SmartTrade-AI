@@ -35,28 +35,65 @@ A comprehensive, AI-powered trading analysis platform that provides real-time st
 
 ## ⚡ Quick Start (TL;DR)
 
+### **Professional Trading Terminal (Recommended)**
 ```bash
 cd /Users/manirastegari/maniProject/AITrader
 pip install -r requirements_advanced.txt
+streamlit run professional_trading_app.py
+```
+
+### **Alternative Versions**
+```bash
+# Advanced version
 streamlit run advanced_trading_app.py
+
+# Enhanced version  
+streamlit run enhanced_trading_app.py
+
+# Simple version
+streamlit run simple_trading_analyzer.py
 ```
 
 Open `http://localhost:8501` in your browser.
 
 ## 🧭 How to Use (Very Brief)
 
-- Start analysis: choose number of stocks → click "Start Advanced Analysis".
-- Read results:
-  - Top Picks: ranked list with BUY/SELL/HOLD and key scores.
-  - Complete Results: table with prediction, confidence, risk.
-  - Charts: prediction vs. confidence, risk distribution, sector view.
+### **Professional Terminal:**
+1. Select "Institutional Grade" analysis
+2. Choose 20-50 stocks for first test
+3. Click "🚀 Run Professional Analysis"
+4. Wait 2-5 minutes for results
+5. Look for High Conviction picks (confidence > 80%)
+
+### **Results to Focus On:**
+- **Current Prices**: Real-time stock prices
+- **Target Prices**: Where to sell for profit  
+- **Upside/Downside**: Green = good, Red = bad
+- **Stop Losses**: Automatic -5% risk management
+- **Professional Scores**: Technical, Fundamental, Sentiment
 
 ## 💹 How to Trade with This App
 
-- Prioritize picks with: recommendation = BUY/STRONG BUY, confidence > 0.7, risk = Low/Medium.
-- Size positions by risk: higher risk → smaller size; set stops below recent support.
-- Diversify: select across sectors; avoid over-concentration.
-- Review daily: re-run and adjust based on updated signals and risk.
+### **Professional Trading Rules:**
+- **Entry**: Current price shown
+- **Target**: Target price (green percentage)
+- **Stop Loss**: -5% from entry price
+- **Position Size**: 2-5% of portfolio per stock
+
+### **High Conviction Criteria:**
+- Confidence > 80%
+- Overall Score > 80  
+- Risk Level = Low
+- Green upside percentage
+
+### **Example Trade:**
+```
+AAPL - BUY - Confidence: 85%
+Current Price: $234.07
+Target Price: $245.00 (+4.7% upside)
+Stop Loss: $222.37 (-5%)
+Position Size: 3% of portfolio
+```
 
 ## 🚀 Quick Start
 
