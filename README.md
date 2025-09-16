@@ -33,6 +33,31 @@ A comprehensive, AI-powered trading analysis platform that provides real-time st
 - No data limits
 - No hidden costs
 
+## ⚡ Quick Start (TL;DR)
+
+```bash
+cd /Users/manirastegari/maniProject/AITrader
+pip install -r requirements_advanced.txt
+streamlit run advanced_trading_app.py
+```
+
+Open `http://localhost:8501` in your browser.
+
+## 🧭 How to Use (Very Brief)
+
+- Start analysis: choose number of stocks → click "Start Advanced Analysis".
+- Read results:
+  - Top Picks: ranked list with BUY/SELL/HOLD and key scores.
+  - Complete Results: table with prediction, confidence, risk.
+  - Charts: prediction vs. confidence, risk distribution, sector view.
+
+## 💹 How to Trade with This App
+
+- Prioritize picks with: recommendation = BUY/STRONG BUY, confidence > 0.7, risk = Low/Medium.
+- Size positions by risk: higher risk → smaller size; set stops below recent support.
+- Diversify: select across sectors; avoid over-concentration.
+- Review daily: re-run and adjust based on updated signals and risk.
+
 ## 🚀 Quick Start
 
 ### Prerequisites

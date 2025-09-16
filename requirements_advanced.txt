@@ -1,0 +1,41 @@
+# Core dependencies for advanced trading analyzer
+streamlit==1.28.1
+pandas==2.1.3
+numpy==1.24.3
+yfinance==0.2.18
+plotly==5.17.0
+matplotlib==3.8.2
+seaborn==0.13.0
+
+# Machine Learning
+scikit-learn==1.3.2
+xgboost==2.0.2
+lightgbm==4.1.0
+
+# Technical Analysis
+pandas-ta==0.3.14b0
+
+# Advanced ML and Analysis
+transformers==4.35.0
+torch==2.1.0
+vaderSentiment==3.3.2
+fredapi==0.5.0
+alpha-vantage==2.3.1
+
+# Data Processing
+beautifulsoup4==4.12.2
+requests==2.31.0
+textblob==0.17.1
+
+# Utilities
+python-dotenv==1.0.0
+schedule==1.2.0
+joblib==1.3.2
+tqdm==4.66.1
+
+# Optional advanced features
+# Uncomment these for even more advanced features
+# tensorflow==2.15.0
+# keras==2.15.0
+# plotly-dash==2.14.2
+# dash-bootstrap-components==1.5.0
