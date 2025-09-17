@@ -96,7 +96,7 @@ class AdvancedDataFetcher:
             earnings_data = self._get_earnings_data(symbol)
             economic_data = self._get_economic_indicators()
             sector_data = self._get_sector_analysis(symbol)
-            analyst_data = self._get_analyst_data(symbol)
+            analyst_data = self._get_analyst_ratings(symbol)
             
             return {
                 'symbol': symbol,
@@ -543,20 +543,6 @@ class AdvancedDataFetcher:
         except Exception as e:
             return {'sector_performance': 0, 'sector_rank': 0, 'sector_momentum': 0, 'sector_volatility': 0}
     
-    def _get_analyst_data(self, symbol):
-        """Get analyst data"""
-        try:
-            # This would typically use analyst rating APIs
-            # For now, return placeholder data
-            return {
-                'analyst_rating': 'Buy',
-                'price_target': 0,
-                'rating_changes': 0,
-                'analyst_consensus': 0.05
-            }
-        except Exception as e:
-            return {'analyst_rating': 'Hold', 'price_target': 0, 'rating_changes': 0, 'analyst_consensus': 0}
-    
     # Include all the existing methods from the original enhanced_data_fetcher.py
     def _calculate_rsi(self, prices, period):
         """Calculate RSI"""
@@ -782,64 +768,64 @@ class AdvancedDataFetcher:
         except Exception as e:
             return {'institutional_ownership': 0.5, 'institutional_confidence': 50, 'hedge_fund_activity': 0}
     
-        def _get_earnings_data(self, symbol):
-            """Get comprehensive earnings data like professional analysts"""
-            try:
-                ticker = yf.Ticker(symbol)
-                info = ticker.info
-                
-                # Get earnings history and estimates
-                earnings_history = ticker.earnings_history
-                earnings_dates = ticker.earnings_dates
-                
-                # Calculate earnings surprise trends
-                earnings_surprise = 0
-                earnings_beat_rate = 0
-                if not earnings_history.empty:
-                    recent_earnings = earnings_history.tail(4)  # Last 4 quarters
-                    if 'Surprise' in recent_earnings.columns:
-                        earnings_surprise = recent_earnings['Surprise'].mean()
-                        earnings_beat_rate = (recent_earnings['Surprise'] > 0).mean() * 100
-                
-                # Get forward guidance
-                forward_pe = info.get('forwardPE', 0)
-                peg_ratio = info.get('pegRatio', 0)
-                
-                # Calculate earnings quality metrics
-                earnings_quality_score = 50  # Base score
-                if earnings_beat_rate > 75:
-                    earnings_quality_score += 25
-                elif earnings_beat_rate > 50:
-                    earnings_quality_score += 10
-                elif earnings_beat_rate < 25:
-                    earnings_quality_score -= 25
-                
-                if earnings_surprise > 0.05:  # 5% positive surprise
-                    earnings_quality_score += 15
-                elif earnings_surprise < -0.05:  # 5% negative surprise
-                    earnings_quality_score -= 15
-                
-                return {
-                    'next_earnings_date': info.get('earningsDate', None),
-                    'earnings_growth': info.get('earningsGrowth', 0),
-                    'revenue_growth': info.get('revenueGrowth', 0),
-                    'profit_margins': info.get('profitMargins', 0),
-                    'return_on_equity': info.get('returnOnEquity', 0),
-                    'earnings_surprise': earnings_surprise,
-                    'earnings_beat_rate': earnings_beat_rate,
-                    'earnings_quality_score': max(0, min(100, earnings_quality_score)),
-                    'forward_pe': forward_pe,
-                    'peg_ratio': peg_ratio,
-                    'earnings_consensus': info.get('earningsQuarterlyGrowth', 0),
-                    'revenue_consensus': info.get('revenueQuarterlyGrowth', 0)
-                }
-            except Exception as e:
-                return {
-                    'next_earnings_date': None, 'earnings_growth': 0, 'revenue_growth': 0, 
-                    'profit_margins': 0, 'return_on_equity': 0, 'earnings_surprise': 0,
-                    'earnings_beat_rate': 50, 'earnings_quality_score': 50, 'forward_pe': 0,
-                    'peg_ratio': 0, 'earnings_consensus': 0, 'revenue_consensus': 0
-                }
+    def _get_earnings_data(self, symbol):
+        """Get comprehensive earnings data like professional analysts"""
+        try:
+            ticker = yf.Ticker(symbol)
+            info = ticker.info
+            
+            # Get earnings history and estimates
+            earnings_history = ticker.earnings_history
+            earnings_dates = ticker.earnings_dates
+            
+            # Calculate earnings surprise trends
+            earnings_surprise = 0
+            earnings_beat_rate = 0
+            if not earnings_history.empty:
+                recent_earnings = earnings_history.tail(4)  # Last 4 quarters
+                if 'Surprise' in recent_earnings.columns:
+                    earnings_surprise = recent_earnings['Surprise'].mean()
+                    earnings_beat_rate = (recent_earnings['Surprise'] > 0).mean() * 100
+            
+            # Get forward guidance
+            forward_pe = info.get('forwardPE', 0)
+            peg_ratio = info.get('pegRatio', 0)
+            
+            # Calculate earnings quality metrics
+            earnings_quality_score = 50  # Base score
+            if earnings_beat_rate > 75:
+                earnings_quality_score += 25
+            elif earnings_beat_rate > 50:
+                earnings_quality_score += 10
+            elif earnings_beat_rate < 25:
+                earnings_quality_score -= 25
+            
+            if earnings_surprise > 0.05:  # 5% positive surprise
+                earnings_quality_score += 15
+            elif earnings_surprise < -0.05:  # 5% negative surprise
+                earnings_quality_score -= 15
+            
+            return {
+                'next_earnings_date': info.get('earningsDate', None),
+                'earnings_growth': info.get('earningsGrowth', 0),
+                'revenue_growth': info.get('revenueGrowth', 0),
+                'profit_margins': info.get('profitMargins', 0),
+                'return_on_equity': info.get('returnOnEquity', 0),
+                'earnings_surprise': earnings_surprise,
+                'earnings_beat_rate': earnings_beat_rate,
+                'earnings_quality_score': max(0, min(100, earnings_quality_score)),
+                'forward_pe': forward_pe,
+                'peg_ratio': peg_ratio,
+                'earnings_consensus': info.get('earningsQuarterlyGrowth', 0),
+                'revenue_consensus': info.get('revenueQuarterlyGrowth', 0)
+            }
+        except Exception as e:
+            return {
+                'next_earnings_date': None, 'earnings_growth': 0, 'revenue_growth': 0, 
+                'profit_margins': 0, 'return_on_equity': 0, 'earnings_surprise': 0,
+                'earnings_beat_rate': 50, 'earnings_quality_score': 50, 'forward_pe': 0,
+                'peg_ratio': 0, 'earnings_consensus': 0, 'revenue_consensus': 0
+            }
     
     def _get_economic_indicators(self):
         """Get economic indicators"""
