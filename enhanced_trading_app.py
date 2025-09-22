@@ -81,7 +81,7 @@ def main():
         
         with col2:
             avg_prediction = np.mean([r['prediction'] for r in results])
-            st.metric("Avg Prediction", f"{avg_prediction:.2%}")
+            st.metric("Avg Prediction", f"{avg_prediction:.2f}%")
             avg_confidence = np.mean([r['confidence'] for r in results])
             st.metric("Avg Confidence", f"{avg_confidence:.1%}")
         
@@ -119,7 +119,7 @@ def main():
                         st.write(f"**Market Cap:** ${pick['market_cap']:,.0f}")
                     
                     with col2:
-                        st.write(f"**Prediction:** {pick['prediction']:.2%}")
+                        st.write(f"**Prediction:** {pick['prediction']:.2f}%")
                         st.write(f"**Confidence:** {pick['confidence']:.1%}")
                         st.write(f"**Risk:** {pick['risk_level']}")
                         st.write(f"**Sector:** {pick['sector']}")

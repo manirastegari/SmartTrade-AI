@@ -25,7 +25,7 @@ def test_enhanced_functionality():
         print(f"Symbol: {result['symbol']}")
         print(f"Price: ${result['current_price']:.2f}")
         print(f"Recommendation: {result['recommendation']}")
-        print(f"Prediction: {result['prediction']:.2%}")
+        print(f"Prediction: {result['prediction']:.2f}%")
         print(f"Confidence: {result['confidence']:.1%}")
         print(f"Risk Level: {result['risk_level']}")
         print(f"Technical Score: {result['technical_score']}/100")
@@ -61,7 +61,7 @@ def test_enhanced_functionality():
         # Show summary statistics
         df = pd.DataFrame(results)
         print(f"\n📊 Enhanced Summary Statistics:")
-        print(f"Average Prediction: {df['prediction'].mean():.2%}")
+        print(f"Average Prediction: {df['prediction'].mean():.2f}%")
         print(f"Average Confidence: {df['confidence'].mean():.1%}")
         print(f"Average Overall Score: {df['overall_score'].mean():.1f}")
         print(f"Strong Buys: {len(df[df['recommendation'].str.contains('STRONG BUY', na=False)])}")

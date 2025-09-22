@@ -1,5 +1,6 @@
 import streamlit as st
 import yfinance as yf
+import logging
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -8,6 +9,10 @@ from datetime import datetime, timedelta
 import time
 import warnings
 warnings.filterwarnings('ignore')
+
+# Suppress noisy library logs (Yahoo/yfinance transient messages)
+logging.getLogger("yfinance").setLevel(logging.CRITICAL)
+logging.getLogger("urllib3").setLevel(logging.CRITICAL)
 
 from advanced_analyzer import AdvancedTradingAnalyzer
 
@@ -57,7 +62,8 @@ st.markdown("""
 # Initialize analyzer
 @st.cache_resource
 def get_analyzer():
-    return AdvancedTradingAnalyzer()
+    # Use light data mode and disable training to avoid heavy, rate-limited calls
+    return AdvancedTradingAnalyzer(enable_training=False, data_mode="light")
 
 analyzer = get_analyzer()
 
@@ -188,7 +194,7 @@ if st.sidebar.button("🚀 Run Professional Analysis", type="primary"):
             st.markdown("""
             <div class="metric-card">
                 <h4>Avg Upside</h4>
-                <div class="price-big {}">{:+.1%}</div>
+                <div class="price-big {}">{:+.1f}%</div>
             </div>
             """.format(color_class, avg_upside), unsafe_allow_html=True)
         
@@ -364,31 +370,10 @@ if st.sidebar.button("🚀 Run Professional Analysis", type="primary"):
     else:
         st.error("No analysis results available. Please check your settings and try again.")
 
-# Real-time market data sidebar
+# Live market data disabled to avoid external rate limits in large-scale free runs
 st.sidebar.markdown("---")
 st.sidebar.markdown("## 📊 Live Market Data")
-
-# Get real-time market indices
-try:
-    spy = yf.Ticker("SPY")
-    spy_data = spy.history(period="1d", interval="1m").tail(1)
-    if not spy_data.empty:
-        spy_price = spy_data['Close'].iloc[-1]
-        spy_change = ((spy_price / spy_data['Open'].iloc[-1]) - 1) * 100
-        
-        color = "🟢" if spy_change > 0 else "🔴"
-        st.sidebar.markdown(f"**S&P 500:** {color} ${spy_price:.2f} ({spy_change:+.2f}%)")
-    
-    # VIX
-    vix = yf.Ticker("^VIX")
-    vix_data = vix.history(period="1d").tail(1)
-    if not vix_data.empty:
-        vix_price = vix_data['Close'].iloc[-1]
-        vix_color = "🔴" if vix_price > 20 else "🟢"
-        st.sidebar.markdown(f"**VIX:** {vix_color} {vix_price:.2f}")
-    
-except:
-    st.sidebar.markdown("*Market data loading...*")
+st.sidebar.info("Disabled in Light Mode for scale and reliability.")
 
 # Professional footer
 st.markdown("---")

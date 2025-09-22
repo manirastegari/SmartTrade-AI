@@ -42,13 +42,16 @@ except ImportError:
 class AdvancedTradingAnalyzer:
     """Advanced trading analyzer with maximum free analysis power"""
     
-    def __init__(self, alpha_vantage_key=None, fred_api_key=None):
+    def __init__(self, alpha_vantage_key=None, fred_api_key=None, *, enable_training: bool = False, data_mode: str = "light"):
         # Expanded stock universe - 1000+ stocks
         self.stock_universe = self._get_expanded_stock_universe()
-        self.data_fetcher = AdvancedDataFetcher(alpha_vantage_key, fred_api_key)
+        # Use light mode by default to avoid rate-limited endpoints
+        self.data_fetcher = AdvancedDataFetcher(alpha_vantage_key, fred_api_key, data_mode=data_mode)
         self.models = {}
         self.scalers = {}
         self.feature_importance = {}
+        self.enable_training = enable_training
+        self.data_mode = data_mode
         
     def _get_expanded_stock_universe(self):
         """Get expanded universe of 1000+ stocks"""
@@ -108,11 +111,11 @@ class AdvancedTradingAnalyzer:
             'BMO', 'BNS', 'CM', 'NA', 'CNR', 'CP', 'ATD', 'WCN', 'BAM', 'MFC', 'SU', 'CNQ', 'IMO', 'CVE'
         ]
     
-    def analyze_stock_comprehensive(self, symbol):
+    def analyze_stock_comprehensive(self, symbol, preloaded_hist: pd.DataFrame | None = None):
         """Comprehensive stock analysis with all available data"""
         try:
             # Get comprehensive data
-            stock_data = self.data_fetcher.get_comprehensive_stock_data(symbol)
+            stock_data = self.data_fetcher.get_comprehensive_stock_data(symbol, preloaded_hist=preloaded_hist)
             if not stock_data:
                 return None
             
@@ -149,17 +152,29 @@ class AdvancedTradingAnalyzer:
             sector_score = self._calculate_sector_score(sector)
             analyst_score = self._calculate_analyst_score(analyst)
             
-            # Overall score with more factors
-            overall_score = (
-                technical_score * 0.20 +
-                fundamental_score * 0.20 +
-                sentiment_score * 0.15 +
-                momentum_score * 0.15 +
-                volume_score * 0.10 +
-                volatility_score * 0.10 +
-                sector_score * 0.05 +
-                analyst_score * 0.05
-            )
+            # Overall score with adaptive weights for light mode
+            if getattr(self, 'data_mode', 'light') == 'light':
+                overall_score = (
+                    technical_score * 0.30 +
+                    fundamental_score * 0.10 +
+                    sentiment_score * 0.20 +
+                    momentum_score * 0.20 +
+                    volume_score * 0.10 +
+                    volatility_score * 0.10 +
+                    sector_score * 0.00 +  # neutralize weaker/approx sector in light mode
+                    0.0  # analyst excluded
+                )
+            else:
+                overall_score = (
+                    technical_score * 0.20 +
+                    fundamental_score * 0.20 +
+                    sentiment_score * 0.15 +
+                    momentum_score * 0.15 +
+                    volume_score * 0.10 +
+                    volatility_score * 0.10 +
+                    sector_score * 0.05 +
+                    analyst_score * 0.05
+                )
             
             # Enhanced recommendation
             recommendation = self._generate_enhanced_recommendation(
@@ -169,14 +184,14 @@ class AdvancedTradingAnalyzer:
             # Professional upside/downside calculation
             current_price = df['Close'].iloc[-1]
             
-            # Get analyst price target
+            # Get analyst price target (ignored in light mode)
             analyst_target = analyst.get('price_target', 0)
             
             # Calculate multiple price targets
             technical_target = current_price * (1 + prediction_result['prediction'] / 100)
             
-            # Combine targets (professional approach)
-            if analyst_target > 0:
+            # Combine targets (skip analyst target in light mode)
+            if getattr(self, 'data_mode', 'light') != 'light' and analyst_target > 0:
                 combined_target = (technical_target * 0.6 + analyst_target * 0.4)
             else:
                 combined_target = technical_target
@@ -237,6 +252,36 @@ class AdvancedTradingAnalyzer:
         except Exception as e:
             print(f"Error analyzing {symbol}: {e}")
             return None
+    
+    def run_advanced_analysis(self, max_stocks=100, symbols: list[str] | None = None):
+        """Run advanced analysis on multiple stocks (lightweight by default)."""
+        try:
+            # Train models first if enabled and not already trained
+            if self.enable_training and not self.models:
+                print("Models not trained yet. Training models first...")
+                if not self._train_models(min(50, max_stocks)):
+                    print("Failed to train models. Using simple predictions.")
+            
+            symbols = (symbols or self.stock_universe)[:max_stocks]
+            # Bulk fetch OHLCV once for all symbols
+            hist_map = self.data_fetcher.get_bulk_history(symbols, period="2y", interval="1d")
+            
+            results = []
+            print(f"Starting advanced analysis of {max_stocks} stocks...")
+            
+            for i, symbol in enumerate(symbols):
+                print(f"Analyzing {symbol} ({i+1}/{max_stocks})...")
+                pre_hist = hist_map.get(symbol) if isinstance(hist_map, dict) else None
+                result = self.analyze_stock_comprehensive(symbol, preloaded_hist=pre_hist)
+                if result:
+                    results.append(result)
+                # Gentle pacing to reduce 429s
+                time.sleep(0.15)
+            
+            return results
+        except Exception as e:
+            print(f"Error in advanced analysis: {e}")
+            return []
     
     def _create_comprehensive_features(self, df, info, news, insider, options, institutional, earnings, economic, sector, analyst):
         """Create comprehensive feature set with 200+ features"""
@@ -620,18 +665,20 @@ class AdvancedTradingAnalyzer:
             elif insider['net_insider_activity'] < 0:
                 signals.append("Net Insider Selling - Negative Signal")
             
-            # Options signals
-            put_call_ratio = options['put_call_ratio']
-            if put_call_ratio < 0.5:
-                signals.append("Low Put/Call Ratio - Bullish Options Sentiment")
-            elif put_call_ratio > 2.0:
-                signals.append("High Put/Call Ratio - Bearish Options Sentiment")
-            
-            # Institutional signals
-            if institutional['institutional_confidence'] > 70:
-                signals.append("High Institutional Confidence - BUY")
-            elif institutional['institutional_confidence'] < 30:
-                signals.append("Low Institutional Confidence - SELL")
+            # Options/Institutional/Analyst signals only in full mode
+            if getattr(self, 'data_mode', 'light') != 'light':
+                # Options signals
+                put_call_ratio = options['put_call_ratio']
+                if put_call_ratio < 0.5:
+                    signals.append("Low Put/Call Ratio - Bullish Options Sentiment")
+                elif put_call_ratio > 2.0:
+                    signals.append("High Put/Call Ratio - Bearish Options Sentiment")
+                
+                # Institutional signals
+                if institutional['institutional_confidence'] > 70:
+                    signals.append("High Institutional Confidence - BUY")
+                elif institutional['institutional_confidence'] < 30:
+                    signals.append("Low Institutional Confidence - SELL")
             
             # Sector signals
             if sector['sector_performance'] > 0.05:
@@ -640,10 +687,11 @@ class AdvancedTradingAnalyzer:
                 signals.append("Weak Sector Performance - SELL")
             
             # Analyst signals
-            if analyst['analyst_rating'] == 'Buy':
-                signals.append("Analyst Buy Rating - BUY")
-            elif analyst['analyst_rating'] == 'Sell':
-                signals.append("Analyst Sell Rating - SELL")
+            if getattr(self, 'data_mode', 'light') != 'light':
+                if analyst['analyst_rating'] == 'Buy':
+                    signals.append("Analyst Buy Rating - BUY")
+                elif analyst['analyst_rating'] == 'Sell':
+                    signals.append("Analyst Sell Rating - SELL")
             
         except Exception as e:
             print(f"Error generating signals: {e}")
@@ -1057,30 +1105,7 @@ class AdvancedTradingAnalyzer:
             print(f"Error training models: {e}")
             return False
 
-    def run_advanced_analysis(self, max_stocks=100):
-        """Run advanced analysis on multiple stocks"""
-        try:
-            # Train models first if not already trained
-            if not self.models:
-                print("Models not trained yet. Training models first...")
-                if not self._train_models(min(50, max_stocks)):
-                    print("Failed to train models. Using simple predictions.")
-            
-            results = []
-            print(f"Starting advanced analysis of {max_stocks} stocks...")
-            
-            for i, symbol in enumerate(self.stock_universe[:max_stocks]):
-                print(f"Analyzing {symbol} ({i+1}/{max_stocks})...")
-                result = self.analyze_stock_comprehensive(symbol)
-                if result:
-                    results.append(result)
-                time.sleep(0.2)  # Rate limiting
-            
-            return results
-            
-        except Exception as e:
-            print(f"Error in advanced analysis: {e}")
-            return []
+    
     
     def get_top_picks_advanced(self, results, top_n=30):
         """Get advanced top picks"""
