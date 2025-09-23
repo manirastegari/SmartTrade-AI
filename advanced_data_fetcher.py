@@ -755,11 +755,30 @@ class AdvancedDataFetcher:
             df['Price_Acceleration'] = df['Price_Momentum_20'].diff()
             df['Volatility_Ratio'] = df['Volatility_20'] / df['Volatility_50'] if 'Volatility_50' in df.columns else 1
             
+            # Zero-cost fundamental enhancements
+            df['PEG_Estimate'] = self._calculate_peg_estimate(df['Close'])
+            df['EV_EBITDA_Proxy'] = self._calculate_ev_ebitda_proxy(df['Close'], df['Volume'])
+            df['Liquidity_Score'] = self._calculate_liquidity_score(df['Close'], df['Volume'])
+            df['Dividend_Yield_Estimate'] = self._estimate_dividend_yield(df['Close'])
+            df['FCF_Proxy'] = self._calculate_fcf_proxy(df['Close'], df['Volume'])
+            
             # Chart pattern signals - Zero API cost
             df['Head_Shoulders_Signal'] = self._detect_head_shoulders(df['High'], df['Low'], df['Close'])
             df['Double_Top_Signal'] = self._detect_double_top(df['High'], df['Close'])
             df['Double_Bottom_Signal'] = self._detect_double_bottom(df['Low'], df['Close'])
             df['Triangle_Pattern'] = self._detect_triangle_pattern(df['High'], df['Low'], df['Close'])
+            
+            # Additional candlestick patterns - Zero API cost
+            df['Doji_Signal'] = self._detect_doji(df['Open'], df['High'], df['Low'], df['Close'])
+            df['Engulfing_Signal'] = self._detect_engulfing(df['Open'], df['High'], df['Low'], df['Close'])
+            df['Morning_Star'] = self._detect_morning_star(df['Open'], df['High'], df['Low'], df['Close'])
+            
+            # Strategic trading signals - Zero API cost
+            df['Golden_Cross'] = self._detect_golden_cross(df['SMA_50'], df['SMA_200'])
+            df['Death_Cross'] = self._detect_death_cross(df['SMA_50'], df['SMA_200'])
+            df['Mean_Reversion_Buy'] = (df['RSI_14'] < 30).astype(int)
+            df['Mean_Reversion_Sell'] = (df['RSI_14'] > 70).astype(int)
+            df['Breakout_Signal'] = self._detect_breakout(df['High'], df['Low'], df['Close'], df['Volume'])
             
             # Enhanced momentum indicators - Zero API cost
             df['Price_Strength'] = self._calculate_price_strength(df['Close'])
@@ -1440,6 +1459,166 @@ class AdvancedDataFetcher:
             return quality.fillna(50).clip(0, 100)
         except Exception:
             return pd.Series(50, index=prices.index)
+    
+    def _calculate_peg_estimate(self, prices, period=252):
+        """Estimate PEG ratio from price momentum - Zero API cost"""
+        try:
+            # Estimate growth from price momentum over 1 year
+            annual_return = prices.pct_change(min(period, len(prices)-1))
+            growth_estimate = annual_return * 100  # Convert to percentage
+            
+            # Estimate P/E from price volatility (lower vol = higher P/E typically)
+            volatility = prices.rolling(60).std() / prices.rolling(60).mean()
+            pe_estimate = 20 / (volatility * 100 + 0.01)  # Inverse relationship
+            
+            # PEG = P/E / Growth
+            peg_estimate = pe_estimate / (growth_estimate.abs() + 0.01)
+            return peg_estimate.fillna(1.5).clip(0, 5)  # Cap at reasonable range
+        except Exception:
+            return pd.Series(1.5, index=prices.index)
+    
+    def _calculate_ev_ebitda_proxy(self, prices, volume, period=60):
+        """Estimate EV/EBITDA proxy from price and volume - Zero API cost"""
+        try:
+            # Use price-to-volume ratio as proxy for valuation
+            avg_price = prices.rolling(period).mean()
+            avg_volume = volume.rolling(period).mean()
+            
+            # Higher price relative to volume suggests higher valuation
+            pv_ratio = avg_price / (avg_volume / 1000000 + 0.01)  # Normalize volume
+            
+            # Scale to typical EV/EBITDA range (5-25)
+            ev_ebitda_proxy = (pv_ratio / pv_ratio.rolling(period*2).mean()).fillna(1) * 12
+            return ev_ebitda_proxy.clip(3, 50)
+        except Exception:
+            return pd.Series(12, index=prices.index)
+    
+    def _calculate_liquidity_score(self, prices, volume, period=30):
+        """Calculate liquidity score (Current Ratio proxy) - Zero API cost"""
+        try:
+            # Use volume consistency as liquidity proxy
+            volume_cv = volume.rolling(period).std() / volume.rolling(period).mean()
+            price_stability = 1 - (prices.rolling(period).std() / prices.rolling(period).mean())
+            
+            # Higher volume consistency + price stability = better liquidity
+            liquidity_score = (1 - volume_cv.fillna(0.5)) * 50 + price_stability.fillna(0.5) * 50
+            return liquidity_score.clip(0, 100)
+        except Exception:
+            return pd.Series(50, index=prices.index)
+    
+    def _estimate_dividend_yield(self, prices, period=252):
+        """Estimate dividend yield from price behavior - Zero API cost"""
+        try:
+            # Mature, stable stocks (lower volatility) typically have higher dividends
+            volatility = prices.rolling(period).std() / prices.rolling(period).mean()
+            
+            # Inverse relationship: lower volatility = higher dividend yield estimate
+            dividend_estimate = (0.1 - volatility.fillna(0.05)).clip(0, 0.08) * 100
+            return dividend_estimate
+        except Exception:
+            return pd.Series(2.0, index=prices.index)
+    
+    def _calculate_fcf_proxy(self, prices, volume, period=90):
+        """Calculate Free Cash Flow proxy - Zero API cost"""
+        try:
+            # Use price momentum and volume as FCF proxy
+            price_momentum = prices.pct_change(period)
+            volume_trend = volume.rolling(period).apply(lambda x: np.polyfit(range(len(x)), x, 1)[0])
+            
+            # Positive price momentum + increasing volume = good FCF proxy
+            fcf_proxy = (price_momentum.fillna(0) * 50) + (volume_trend.fillna(0) * 0.001)
+            return fcf_proxy.fillna(0).clip(-50, 50)
+        except Exception:
+            return pd.Series(0, index=prices.index)
+    
+    def _detect_doji(self, open_price, high, low, close):
+        """Detect Doji candlestick pattern - Zero API cost"""
+        try:
+            body_size = abs(close - open_price)
+            total_range = high - low
+            
+            # Doji when body is very small relative to total range
+            doji_signal = (body_size <= total_range * 0.1) & (total_range > 0)
+            return doji_signal.astype(int).fillna(0)
+        except Exception:
+            return pd.Series(0, index=close.index)
+    
+    def _detect_engulfing(self, open_price, high, low, close):
+        """Detect Engulfing pattern - Zero API cost"""
+        try:
+            # Current candle body
+            curr_body = abs(close - open_price)
+            curr_bullish = close > open_price
+            
+            # Previous candle body
+            prev_body = abs(close.shift(1) - open_price.shift(1))
+            prev_bullish = close.shift(1) > open_price.shift(1)
+            
+            # Bullish engulfing: current bullish candle engulfs previous bearish
+            bullish_engulfing = (curr_bullish & ~prev_bullish & 
+                               (curr_body > prev_body * 1.2))
+            
+            # Bearish engulfing: current bearish candle engulfs previous bullish
+            bearish_engulfing = (~curr_bullish & prev_bullish & 
+                               (curr_body > prev_body * 1.2))
+            
+            return (bullish_engulfing | bearish_engulfing).astype(int).fillna(0)
+        except Exception:
+            return pd.Series(0, index=close.index)
+    
+    def _detect_morning_star(self, open_price, high, low, close):
+        """Detect Morning Star pattern - Zero API cost"""
+        try:
+            # Three-candle pattern: bearish, small body, bullish
+            bearish_1 = close.shift(2) < open_price.shift(2)
+            small_body_2 = abs(close.shift(1) - open_price.shift(1)) < abs(close.shift(2) - open_price.shift(2)) * 0.3
+            bullish_3 = close > open_price
+            
+            # Gap down and gap up
+            gap_down = low.shift(1) < close.shift(2)
+            gap_up = open_price < close.shift(1)
+            
+            morning_star = bearish_1 & small_body_2 & bullish_3 & gap_down & gap_up
+            return morning_star.astype(int).fillna(0)
+        except Exception:
+            return pd.Series(0, index=close.index)
+    
+    def _detect_golden_cross(self, sma_50, sma_200):
+        """Detect Golden Cross (50-day SMA crosses above 200-day SMA) - Zero API cost"""
+        try:
+            # Golden cross when 50-day crosses above 200-day
+            cross_above = (sma_50 > sma_200) & (sma_50.shift(1) <= sma_200.shift(1))
+            return cross_above.astype(int).fillna(0)
+        except Exception:
+            return pd.Series(0, index=sma_50.index)
+    
+    def _detect_death_cross(self, sma_50, sma_200):
+        """Detect Death Cross (50-day SMA crosses below 200-day SMA) - Zero API cost"""
+        try:
+            # Death cross when 50-day crosses below 200-day
+            cross_below = (sma_50 < sma_200) & (sma_50.shift(1) >= sma_200.shift(1))
+            return cross_below.astype(int).fillna(0)
+        except Exception:
+            return pd.Series(0, index=sma_50.index)
+    
+    def _detect_breakout(self, high, low, close, volume, period=20):
+        """Detect breakout with volume confirmation - Zero API cost"""
+        try:
+            # Resistance and support levels
+            resistance = high.rolling(period).max().shift(1)
+            support = low.rolling(period).min().shift(1)
+            
+            # Volume confirmation
+            avg_volume = volume.rolling(period).mean()
+            volume_surge = volume > avg_volume * 1.5
+            
+            # Breakout signals
+            bullish_breakout = (close > resistance) & volume_surge
+            bearish_breakdown = (close < support) & volume_surge
+            
+            return (bullish_breakout | bearish_breakdown).astype(int).fillna(0)
+        except Exception:
+            return pd.Series(0, index=close.index)
     
     def _get_yahoo_news(self, symbol):
         """Get news from Yahoo Finance"""
