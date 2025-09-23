@@ -67,6 +67,12 @@ def get_analyzer():
 
 analyzer = get_analyzer()
 
+# Session state for consistent stock selection across analysis types
+if 'selected_symbols' not in st.session_state:
+    st.session_state.selected_symbols = None
+if 'last_selection_params' not in st.session_state:
+    st.session_state.last_selection_params = None
+
 # Sidebar - Professional Controls
 st.sidebar.markdown("## 🎯 Analysis Parameters")
 
@@ -76,7 +82,7 @@ analysis_type = st.sidebar.selectbox(
     ["Institutional Grade", "Hedge Fund Style", "Investment Bank Level", "Quant Research", "Risk Management"]
 )
 
-num_stocks = st.sidebar.slider("Number of Stocks", 10, 200, 50)
+num_stocks = st.sidebar.slider("Number of Stocks", 20, 400, 150)  # Expanded range for comprehensive coverage
 
 # Cap filter and risk style
 cap_filter = st.sidebar.selectbox(
@@ -107,29 +113,190 @@ show_analyst_targets = st.sidebar.checkbox("Analyst Price Targets", value=True)
 show_earnings_impact = st.sidebar.checkbox("Earnings Impact Analysis", value=True)
 show_institutional_flow = st.sidebar.checkbox("Institutional Flow", value=True)
 
-# Main analysis button
-def get_symbols_by_cap(analyzer, cap_filter: str, count: int):
+# Stock selection consistency controls
+st.sidebar.markdown("---")
+st.sidebar.markdown("## 🔄 Stock Selection")
+
+if st.session_state.selected_symbols:
+    st.sidebar.success(f"✅ {len(st.session_state.selected_symbols)} stocks selected")
+    st.sidebar.write(f"**Parameters:** {st.session_state.last_selection_params}")
+    
+    if st.sidebar.button("🔄 Select New Stocks"):
+        st.session_state.selected_symbols = None
+        st.session_state.last_selection_params = None
+        st.rerun()
+else:
+    st.sidebar.info("No stocks selected yet")
+
+st.sidebar.markdown("---")
+
+# Enhanced stock selection with Market Focus integration
+def get_comprehensive_symbol_selection(analyzer, cap_filter: str, market_focus: str, count: int):
+    """
+    Enhanced symbol selection that considers both cap filter and market focus
+    Returns a larger, more comprehensive set for better analysis
+    """
     universe = analyzer.stock_universe
     universe_size = len(universe)
     
+    # Define market focus symbol sets
+    market_focus_symbols = {
+        "S&P 500 Large Cap": [
+            'AAPL','MSFT','GOOGL','AMZN','META','NVDA','TSLA','NFLX','AMD','INTC',
+            'JPM','BAC','WFC','GS','MS','C','AXP','V','MA','PYPL',
+            'JNJ','PFE','UNH','ABBV','MRK','TMO','ABT','DHR','BMY','AMGN',
+            'KO','PEP','WMT','PG','HD','MCD','NKE','SBUX','DIS','CMCSA'
+        ],
+        "NASDAQ Growth": [
+            'AAPL','MSFT','GOOGL','AMZN','META','NVDA','TSLA','NFLX','AMD',
+            'PLTR','CRWD','SNOW','DDOG','NET','OKTA','ZM','DOCU','TWLO',
+            'ROKU','PINS','SNAP','UBER','LYFT','ABNB','DASH','PTON'
+        ],
+        "Russell 2000 Small Cap": [
+            'PLTR','CRWD','SNOW','DDOG','NET','OKTA','ZM','DOCU','TWLO','SQ',
+            'ROKU','PINS','SNAP','UBER','LYFT','ABNB','DASH','PTON','FUBO','RKT',
+            'OPEN','COMP','Z','ZG','ESTC','MDB','TEAM','WDAY','NOW','ZS'
+        ],
+        "Momentum Stocks": [
+            'NVDA','TSLA','AMD','PLTR','CRWD','SNOW','NET','ROKU','UBER','SQ',
+            'ABNB','DASH','ZM','DOCU','PINS','SNAP','PTON','FUBO','RKT','OPEN'
+        ],
+        "Value Stocks": [
+            'JPM','BAC','WFC','GS','MS','C','V','MA','JNJ','PFE','UNH',
+            'KO','PEP','WMT','PG','HD','MCD','CVX','XOM','COP','CAT','BA'
+        ],
+        "Dividend Aristocrats": [
+            'JNJ','PG','KO','PEP','WMT','HD','MCD','CVX','XOM','CAT',
+            'MMM','GE','HON','UPS','FDX','VZ','T','NEE','DUK','SO'
+        ]
+    }
+    
+    # Get base symbols by cap filter
     if cap_filter == "Large Cap":
-        # First 1/3 of universe (typically large caps)
         end_idx = min(universe_size // 3, 200)
-        return universe[:max(10, min(count, end_idx))]
+        base_symbols = universe[:end_idx]
     elif cap_filter == "Mid Cap":
-        # Middle 1/3 of universe
         start = universe_size // 3
         end = (universe_size * 2) // 3
-        available = universe[start:end]
-        return available[:max(10, min(count, len(available)))]
+        base_symbols = universe[start:end]
     elif cap_filter == "Small Cap":
-        # Last 1/3 of universe (typically smaller caps)
         start = (universe_size * 2) // 3
-        available = universe[start:]
-        return available[:max(10, min(count, len(available)))]
+        base_symbols = universe[start:]
     else:
-        # All markets - return from entire universe
-        return universe[:max(10, min(count, universe_size))]
+        base_symbols = universe
+    
+    # Apply market focus filter if specified
+    if market_focus in market_focus_symbols:
+        focus_symbols = market_focus_symbols[market_focus]
+        # Prioritize symbols that match both cap filter and market focus
+        prioritized = [s for s in base_symbols if s in focus_symbols]
+        remaining = [s for s in base_symbols if s not in focus_symbols]
+        base_symbols = prioritized + remaining
+    elif market_focus == "Sector Rotation":
+        # Mix of different sectors for rotation strategy
+        sectors = [
+            universe[:universe_size//4],  # Tech heavy
+            universe[universe_size//4:universe_size//2],  # Mixed
+            universe[universe_size//2:3*universe_size//4],  # Value/Industrial
+            universe[3*universe_size//4:]  # Small/Speculative
+        ]
+        base_symbols = []
+        for sector in sectors:
+            base_symbols.extend(sector[:count//4])
+    
+    # Ensure we have enough symbols, expand if needed
+    if len(base_symbols) < count:
+        # Add more symbols from the broader universe if needed
+        additional_needed = count - len(base_symbols)
+        additional_symbols = [s for s in universe if s not in base_symbols][:additional_needed]
+        base_symbols.extend(additional_symbols)
+    
+    # Return the requested count, but ensure good coverage
+    # For larger requests, use more of the universe
+    if count >= 300:
+        # For 300+ requests, use the full universe if needed
+        final_count = min(count, len(universe))
+        if len(base_symbols) < final_count:
+            # Add more symbols from the broader universe
+            additional_needed = final_count - len(base_symbols)
+            additional_symbols = [s for s in universe if s not in base_symbols][:additional_needed]
+            base_symbols.extend(additional_symbols)
+        return base_symbols[:final_count]
+    else:
+        # For smaller requests, maintain minimum coverage
+        final_count = max(count, min(50, len(base_symbols)))
+        return base_symbols[:final_count]
+
+def get_symbols_by_cap(analyzer, cap_filter: str, count: int):
+    """Legacy function for backward compatibility"""
+    return get_comprehensive_symbol_selection(analyzer, cap_filter, "All Markets", count)
+
+def apply_analysis_type_adjustments(results, analysis_type: str):
+    """
+    Apply analysis type-specific scoring adjustments to make Analysis Type meaningful
+    """
+    adjusted_results = []
+    
+    for result in results:
+        adjusted_result = result.copy()
+        
+        if analysis_type == "Institutional Grade":
+            # Favor stability, liquidity, and established companies
+            # Boost scores for large cap, low volatility, high volume
+            stability_bonus = 0
+            if result.get('current_price', 0) > 50:  # Higher price stocks tend to be more stable
+                stability_bonus += 5
+            if result.get('volume_score', 50) > 70:  # High volume = good liquidity
+                stability_bonus += 5
+            adjusted_result['overall_score'] = min(100, result['overall_score'] + stability_bonus)
+            adjusted_result['analysis_focus'] = "Institutional: Stability & Liquidity"
+            
+        elif analysis_type == "Hedge Fund Style":
+            # Favor momentum, volatility, and alpha generation
+            momentum_bonus = 0
+            if result.get('momentum_score', 50) > 70:
+                momentum_bonus += 8
+            if result.get('volatility_score', 50) > 60:  # Higher volatility = more opportunity
+                momentum_bonus += 5
+            adjusted_result['overall_score'] = min(100, result['overall_score'] + momentum_bonus)
+            adjusted_result['analysis_focus'] = "Hedge Fund: Momentum & Alpha"
+            
+        elif analysis_type == "Investment Bank Level":
+            # Favor fundamental strength and analyst coverage
+            fundamental_bonus = 0
+            if result.get('fundamental_score', 50) > 70:
+                fundamental_bonus += 8
+            if result.get('analyst_score', 50) > 60:
+                fundamental_bonus += 5
+            adjusted_result['overall_score'] = min(100, result['overall_score'] + fundamental_bonus)
+            adjusted_result['analysis_focus'] = "Investment Bank: Fundamentals & Coverage"
+            
+        elif analysis_type == "Quant Research":
+            # Favor technical indicators and statistical patterns
+            technical_bonus = 0
+            if result.get('technical_score', 50) > 75:
+                technical_bonus += 10
+            if result.get('confidence', 0) > 0.8:  # High confidence in predictions
+                technical_bonus += 5
+            adjusted_result['overall_score'] = min(100, result['overall_score'] + technical_bonus)
+            adjusted_result['analysis_focus'] = "Quant: Technical & Statistical"
+            
+        elif analysis_type == "Risk Management":
+            # Favor risk-adjusted returns and downside protection
+            risk_bonus = 0
+            if result.get('risk_level') == "Low":
+                risk_bonus += 8
+            elif result.get('risk_level') == "Medium":
+                risk_bonus += 3
+            if result.get('prediction', 0) > 0 and result.get('confidence', 0) > 0.7:  # Positive with high confidence
+                risk_bonus += 5
+            adjusted_result['overall_score'] = min(100, result['overall_score'] + risk_bonus)
+            adjusted_result['analysis_focus'] = "Risk Mgmt: Downside Protection"
+        
+        adjusted_results.append(adjusted_result)
+    
+    # Re-sort by adjusted overall score
+    return sorted(adjusted_results, key=lambda x: x['overall_score'], reverse=True)
 
 def filter_by_risk(results, risk_style: str):
     if risk_style == "Low Risk":
@@ -172,8 +339,27 @@ if st.sidebar.button("🚀 Run Professional Analysis", type="primary"):
         progress_bar.progress(100)
         time.sleep(1)
         
-        # Prepare symbols by cap filter
-        symbols = get_symbols_by_cap(analyzer, cap_filter, num_stocks)
+        # Check if we need to select new symbols or use cached ones
+        current_params = (cap_filter, market_focus, num_stocks)
+        
+        if (st.session_state.last_selection_params != current_params or 
+            st.session_state.selected_symbols is None):
+            # New selection needed
+            st.session_state.selected_symbols = get_comprehensive_symbol_selection(
+                analyzer, cap_filter, market_focus, num_stocks
+            )
+            st.session_state.last_selection_params = current_params
+            st.info(f"🎯 Selected {len(st.session_state.selected_symbols)} stocks for analysis based on {cap_filter} + {market_focus}")
+        else:
+            st.info(f"🔄 Using same {len(st.session_state.selected_symbols)} stocks as previous analysis for consistency")
+        
+        symbols = st.session_state.selected_symbols
+        
+        # Show selected symbols preview
+        with st.expander(f"📊 Selected Stocks Preview ({len(symbols)} total)"):
+            st.write("**First 20 symbols:**", symbols[:20])
+            if len(symbols) > 20:
+                st.write("**Last 10 symbols:**", symbols[-10:])
         
         # Run the analysis on selected symbols
         results = analyzer.run_advanced_analysis(max_stocks=len(symbols), symbols=symbols)
@@ -207,6 +393,10 @@ if st.sidebar.button("🚀 Run Professional Analysis", type="primary"):
                 ]
             
             results = analyzer.run_advanced_analysis(max_stocks=min(num_stocks, len(fallback_symbols)), symbols=fallback_symbols)
+        
+        # Apply analysis type-specific adjustments
+        if results:
+            results = apply_analysis_type_adjustments(results, analysis_type)
         
         # Post-filter by risk style for display
         results = filter_by_risk(results, risk_style)

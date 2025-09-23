@@ -109,7 +109,59 @@ class AdvancedTradingAnalyzer:
             'MRVL', 'MCHP', 'ADI', 'SLAB', 'SWKS', 'QRVO', 'CRUS', 'SYNA', 'NFLX', 'DIS', 'CMCSA', 'T', 'VZ',
             'CHTR', 'DISH', 'SIRI', 'LBRDA', 'LBRDK', 'FWONA', 'FWONK', 'LSXMA', 'LSXMK', 'SHOP', 'W', 'SQ',
             'PYPL', 'V', 'MA', 'AXP', 'COF', 'DFS', 'FISV', 'FIS', 'GPN', 'JKHY', 'FLT', 'WU', 'RY', 'TD',
-            'BMO', 'BNS', 'CM', 'NA', 'CNR', 'CP', 'ATD', 'WCN', 'BAM', 'MFC', 'SU', 'CNQ', 'IMO', 'CVE'
+            'BMO', 'BNS', 'CM', 'NA', 'CNR', 'CP', 'ATD', 'WCN', 'BAM', 'MFC', 'SU', 'CNQ', 'IMO', 'CVE',
+            
+            # Additional High-Growth Tech (Expanded Coverage)
+            'ADSK', 'WDAY', 'VEEV', 'ZS', 'PANW', 'FTNT', 'CYBR', 'PING', 'SPLK', 'TENB', 'RPD', 'FEYE',
+            'QLYS', 'VRNS', 'MIME', 'PFPT', 'ALRM', 'SAIL', 'ASAN', 'MNDY', 'PD', 'BILL', 'DOCN', 'FSLY',
+            
+            # Biotech/Life Sciences (High Upside Potential)
+            'NVAX', 'SRPT', 'BLUE', 'EDIT', 'CRSP', 'NTLA', 'BEAM', 'PRIME', 'VCYT', 'PACB', 'TWST', 'CDNA',
+            'FATE', 'SGMO', 'RGNX', 'RARE', 'FOLD', 'ARWR', 'IONS', 'EXAS', 'TDOC', 'DXCM', 'ALGN', 'PODD',
+            
+            # Clean Energy/Sustainability (Future Growth)
+            'ENPH', 'SEDG', 'RUN', 'NOVA', 'FSLR', 'SPWR', 'CSIQ', 'JKS', 'SOL', 'MAXN', 'PLUG', 'FCEL',
+            'BE', 'BLDP', 'HYLN', 'QS', 'CHPT', 'BLNK', 'EVG', 'CLNE', 'ICLN', 'PBW', 'QCLN', 'LIT',
+            
+            # Fintech/Digital Finance (Disruption Plays)
+            'AFRM', 'UPST', 'SOFI', 'LC', 'LMND', 'ROOT', 'MTTR', 'HOOD', 'COIN', 'MARA', 'RIOT', 'HUT',
+            'BITF', 'CAN', 'EBON', 'SOS', 'BTBT', 'GREE', 'OSTK', 'MSTR', 'TSLA', 'SQ', 'PYPL', 'V',
+            
+            # E-commerce/Digital Consumer (Market Expansion)
+            'MELI', 'SE', 'CHWY', 'PETQ', 'WOOF', 'FRPT', 'BARK', 'WAGS', 'PETM', 'PETS', 'RDFN', 'COMP',
+            'TREE', 'CARS', 'CVNA', 'VRM', 'SFT', 'CPNG', 'GRAB', 'DIDI', 'BABA', 'JD', 'PDD', 'VIPS',
+            
+            # Cloud/SaaS (Scalable Business Models)
+            'AI', 'C3AI', 'PATH', 'SMAR', 'FROG', 'BIGC', 'APPS', 'WORK', 'BOX', 'DBX', 'SEND', 'BAND',
+            'RNG', 'GTLB', 'ESTC', 'MDB', 'TEAM', 'WDAY', 'NOW', 'CRM', 'ADBE', 'ORCL', 'INTU', 'ADP',
+            
+            # Gaming/Entertainment (Digital Transformation)
+            'RBLX', 'U', 'DKNG', 'PENN', 'MGM', 'LVS', 'WYNN', 'CZR', 'BYD', 'RSI', 'GLUU', 'HUYA',
+            'DOYU', 'BILI', 'IQ', 'FUBO', 'PARA', 'WBD', 'FOXA', 'EA', 'ATVI', 'TTWO', 'ZNGA',
+            
+            # REITs/Real Estate (Diversification)
+            'EQIX', 'PSA', 'EXR', 'AVB', 'EQR', 'UDR', 'ESS', 'MAA', 'CPT', 'AIV', 'STOR', 'WPC',
+            'NNN', 'ADC', 'STAG', 'LXP', 'GTY', 'EPRT', 'FCPT', 'GOOD', 'VNO', 'BXP', 'KIM', 'REG',
+            
+            # International/ADRs (Global Exposure)
+            'TSM', 'ASML', 'NVO', 'UL', 'BP', 'TTE', 'E', 'SAN', 'BBVA', 'ING', 'BABA', 'JD', 'PDD',
+            'VIPS', 'YMM', 'DANG', 'WB', 'BIDU', 'NTES', 'TCOM', 'MOMO', 'SINA', 'SOHU', 'NTES',
+            
+            # Small/Mid Cap High Potential (Hidden Gems)
+            'CRWD', 'NET', 'DDOG', 'SNOW', 'PLTR', 'RBLX', 'U', 'DKNG', 'PENN', 'CHWY', 'ETSY', 'MELI',
+            'SE', 'AFRM', 'UPST', 'SOFI', 'LC', 'LMND', 'ROOT', 'HOOD', 'COIN', 'MARA', 'RIOT', 'HUT',
+            
+            # Emerging/Speculative (Maximum Upside Potential)
+            'SPCE', 'RKLB', 'ASTR', 'VACQ', 'HOL', 'SRAC', 'CCIV', 'THCB', 'ACTC', 'STPK', 'CLOV',
+            'WISH', 'BARK', 'OPEN', 'RDFN', 'Z', 'ZG', 'COMP', 'TREE', 'CARS', 'CVNA', 'VRM', 'SFT',
+            
+            # Additional Dividend/Value Opportunities
+            'KMB', 'CHD', 'CLX', 'MNST', 'KDP', 'STZ', 'BF.B', 'TAP', 'DEO', 'YUM', 'CMG', 'DPZ',
+            'PZZA', 'WING', 'JACK', 'ARCO', 'DENN', 'CAKE', 'EAT', 'DRI', 'BLMN', 'LULU', 'UA', 'VFC',
+            
+            # Technology Hardware/Semiconductors
+            'MRVL', 'MCHP', 'ADI', 'SLAB', 'SWKS', 'QRVO', 'CRUS', 'SYNA', 'AMAT', 'LRCX', 'KLAC',
+            'MU', 'WDC', 'STX', 'NTAP', 'HPQ', 'DELL', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META'
         ]
         
         # Remove duplicates while preserving order
