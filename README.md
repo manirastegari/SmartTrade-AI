@@ -66,6 +66,8 @@ streamlit run professional_trading_app.py
 - **Session Consistency**: Same stocks across different analysis types
 - **Hidden Gem Discovery**: Complete coverage of high-potential sectors
 - **Bulletproof Reliability**: 18 data sources, never fails
+- **16 New Indicators**: ROC, Aroon, CMO, Pattern Recognition (zero API cost)
+- **Chart Patterns**: Head & Shoulders, Double Top/Bottom, Triangle detection
 
 Open `http://localhost:8501` in your browser.
 
@@ -213,6 +215,12 @@ Position Size: 3% of portfolio
 - **💻 High-Growth SaaS**: ASAN, MNDY, PD, BILL, DOCN, FSLY
 - **🛒 E-commerce**: MELI, SE, CVNA, VRM, CPNG, GRAB
 
+### **📊 Enhanced Technical Analysis (V2.0)**
+- **New Indicators**: Rate of Change (ROC), Aroon Oscillator, Chande Momentum (CMO)
+- **Pattern Recognition**: Head & Shoulders, Double Top/Bottom, Triangle patterns
+- **Advanced Momentum**: Price Strength, Trend Quality, Price Acceleration
+- **Zero API Cost**: All 16+ new indicators calculated from existing data
+
 ### **Traditional Categories (Enhanced)**
 - **Tech Giants**: AAPL, MSFT, GOOGL, AMZN, META, NVDA, TSLA, NFLX, AMD, INTC
 - **Financial**: JPM, BAC, WFC, GS, MS, C, AXP, V, MA, PYPL
@@ -347,6 +355,8 @@ GitHub: [@yourusername](https://github.com/yourusername)
 - **🌍 52% More Opportunities**: 529-stock universe  
 - **💎 Zero Missed Gems**: 100% coverage of high-potential sectors
 - **🛡️ Bulletproof Reliability**: 18 data sources, never fails
+- **📈 16+ New Indicators**: Professional-grade analysis with zero API cost
+- **🎨 Pattern Recognition**: Chart patterns for institutional-level insights
 - **🏦 TFSA Optimized**: Perfect for tax-free wealth building
 
 ### **🎯 Bottom Line**

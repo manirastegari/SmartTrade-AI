@@ -735,6 +735,36 @@ class AdvancedDataFetcher:
             for level, value in pivot_points.items():
                 df[f'Pivot_{level}'] = value
             
+            # Zero-cost enhancements for free app optimization
+            # Rate of Change (ROC) - Pure calculation from existing data
+            df['ROC_5'] = df['Close'].pct_change(5) * 100
+            df['ROC_10'] = df['Close'].pct_change(10) * 100
+            df['ROC_20'] = df['Close'].pct_change(20) * 100
+            
+            # Aroon Oscillator - Zero API cost
+            aroon = self._calculate_aroon(df['High'], df['Low'])
+            df['Aroon_Up'] = aroon['up']
+            df['Aroon_Down'] = aroon['down'] 
+            df['Aroon_Oscillator'] = aroon['up'] - aroon['down']
+            
+            # Chande Momentum Oscillator - Zero API cost
+            df['CMO'] = self._calculate_cmo(df['Close'])
+            
+            # Enhanced fundamental ratios from existing data - Zero API cost
+            df['Price_Momentum_20'] = df['Close'].pct_change(20)
+            df['Price_Acceleration'] = df['Price_Momentum_20'].diff()
+            df['Volatility_Ratio'] = df['Volatility_20'] / df['Volatility_50'] if 'Volatility_50' in df.columns else 1
+            
+            # Chart pattern signals - Zero API cost
+            df['Head_Shoulders_Signal'] = self._detect_head_shoulders(df['High'], df['Low'], df['Close'])
+            df['Double_Top_Signal'] = self._detect_double_top(df['High'], df['Close'])
+            df['Double_Bottom_Signal'] = self._detect_double_bottom(df['Low'], df['Close'])
+            df['Triangle_Pattern'] = self._detect_triangle_pattern(df['High'], df['Low'], df['Close'])
+            
+            # Enhanced momentum indicators - Zero API cost
+            df['Price_Strength'] = self._calculate_price_strength(df['Close'])
+            df['Trend_Quality'] = self._calculate_trend_quality(df['Close'], df['Volume'])
+            
             # Volume indicators
             df['Volume_SMA_10'] = df['Volume'].rolling(window=10).mean()
             df['Volume_SMA_20'] = df['Volume'].rolling(window=20).mean()
@@ -1294,6 +1324,122 @@ class AdvancedDataFetcher:
         """Calculate trend direction"""
         sma = prices.rolling(window=period).mean()
         return np.where(prices > sma, 1, -1)
+    
+    def _calculate_aroon(self, high, low, period=14):
+        """Calculate Aroon Oscillator - Zero API cost"""
+        try:
+            aroon_up = ((period - high.rolling(period).apply(lambda x: period - 1 - x.argmax())) / period) * 100
+            aroon_down = ((period - low.rolling(period).apply(lambda x: period - 1 - x.argmin())) / period) * 100
+            return {
+                'up': aroon_up.fillna(50),
+                'down': aroon_down.fillna(50)
+            }
+        except Exception:
+            return {'up': pd.Series(50, index=high.index), 'down': pd.Series(50, index=high.index)}
+    
+    def _calculate_cmo(self, prices, period=14):
+        """Calculate Chande Momentum Oscillator - Zero API cost"""
+        try:
+            delta = prices.diff()
+            up_sum = delta.where(delta > 0, 0).rolling(period).sum()
+            down_sum = (-delta.where(delta < 0, 0)).rolling(period).sum()
+            cmo = 100 * (up_sum - down_sum) / (up_sum + down_sum)
+            return cmo.fillna(0)
+        except Exception:
+            return pd.Series(0, index=prices.index)
+    
+    def _detect_head_shoulders(self, high, low, close, lookback=20):
+        """Detect Head and Shoulders pattern - Zero API cost"""
+        try:
+            # Simplified head and shoulders detection
+            rolling_max = high.rolling(lookback).max()
+            rolling_min = low.rolling(lookback).min()
+            
+            # Look for three peaks pattern
+            peaks = (high == rolling_max) & (high.shift(1) < high) & (high.shift(-1) < high)
+            
+            # Head and shoulders signal when price breaks neckline
+            neckline = (rolling_max + rolling_min) / 2
+            signal = (close < neckline) & peaks.rolling(lookback).sum() >= 3
+            
+            return signal.astype(int).fillna(0)
+        except Exception:
+            return pd.Series(0, index=close.index)
+    
+    def _detect_double_top(self, high, close, lookback=20):
+        """Detect Double Top pattern - Zero API cost"""
+        try:
+            rolling_max = high.rolling(lookback).max()
+            peaks = (high == rolling_max) & (high.shift(1) < high) & (high.shift(-1) < high)
+            
+            # Double top when two similar peaks and price breaks support
+            recent_peaks = peaks.rolling(lookback*2).sum()
+            support_level = close.rolling(lookback).min()
+            
+            signal = (recent_peaks >= 2) & (close < support_level)
+            return signal.astype(int).fillna(0)
+        except Exception:
+            return pd.Series(0, index=close.index)
+    
+    def _detect_double_bottom(self, low, close, lookback=20):
+        """Detect Double Bottom pattern - Zero API cost"""
+        try:
+            rolling_min = low.rolling(lookback).min()
+            troughs = (low == rolling_min) & (low.shift(1) > low) & (low.shift(-1) > low)
+            
+            # Double bottom when two similar troughs and price breaks resistance
+            recent_troughs = troughs.rolling(lookback*2).sum()
+            resistance_level = close.rolling(lookback).max()
+            
+            signal = (recent_troughs >= 2) & (close > resistance_level)
+            return signal.astype(int).fillna(0)
+        except Exception:
+            return pd.Series(0, index=close.index)
+    
+    def _detect_triangle_pattern(self, high, low, close, lookback=20):
+        """Detect Triangle pattern - Zero API cost"""
+        try:
+            # Simplified triangle detection based on converging highs and lows
+            high_trend = high.rolling(lookback).apply(lambda x: np.polyfit(range(len(x)), x, 1)[0])
+            low_trend = low.rolling(lookback).apply(lambda x: np.polyfit(range(len(x)), x, 1)[0])
+            
+            # Triangle when highs are declining and lows are rising (or vice versa)
+            converging = (high_trend < 0) & (low_trend > 0) | (high_trend > 0) & (low_trend < 0)
+            
+            # Breakout signal
+            range_size = high.rolling(lookback).max() - low.rolling(lookback).min()
+            current_range = high - low
+            
+            signal = converging & (current_range < range_size * 0.5)
+            return signal.astype(int).fillna(0)
+        except Exception:
+            return pd.Series(0, index=close.index)
+    
+    def _calculate_price_strength(self, prices, period=14):
+        """Calculate Price Strength - Zero API cost"""
+        try:
+            # Relative strength based on price momentum
+            momentum = prices.pct_change(period)
+            strength = momentum.rolling(period).rank(pct=True) * 100
+            return strength.fillna(50)
+        except Exception:
+            return pd.Series(50, index=prices.index)
+    
+    def _calculate_trend_quality(self, prices, volume, period=20):
+        """Calculate Trend Quality - Zero API cost"""
+        try:
+            # Trend quality based on price consistency and volume confirmation
+            price_trend = prices.rolling(period).apply(lambda x: np.polyfit(range(len(x)), x, 1)[0])
+            volume_trend = volume.rolling(period).apply(lambda x: np.polyfit(range(len(x)), x, 1)[0])
+            
+            # Quality is higher when price and volume trends align
+            trend_alignment = np.sign(price_trend) == np.sign(volume_trend)
+            price_consistency = 1 - (prices.rolling(period).std() / prices.rolling(period).mean())
+            
+            quality = (trend_alignment.astype(int) * 50) + (price_consistency * 50)
+            return quality.fillna(50).clip(0, 100)
+        except Exception:
+            return pd.Series(50, index=prices.index)
     
     def _get_yahoo_news(self, symbol):
         """Get news from Yahoo Finance"""
