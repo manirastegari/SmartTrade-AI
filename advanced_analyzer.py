@@ -23,6 +23,7 @@ from sklearn.svm import SVR
 from sklearn.neural_network import MLPRegressor
 import xgboost as xgb
 from advanced_data_fetcher import AdvancedDataFetcher
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Try to import advanced ML libraries
 try:
@@ -55,7 +56,7 @@ class AdvancedTradingAnalyzer:
         
     def _get_expanded_stock_universe(self):
         """Get expanded universe of 1000+ stocks"""
-        return [
+        universe = [
             # S&P 500 Major Stocks
             'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'NVDA', 'TSLA', 'NFLX', 'AMD', 'INTC',
             'JPM', 'BAC', 'WFC', 'GS', 'MS', 'C', 'AXP', 'V', 'MA', 'PYPL', 'COF', 'USB', 'PNC', 'TFC', 'BK',
@@ -110,6 +111,16 @@ class AdvancedTradingAnalyzer:
             'PYPL', 'V', 'MA', 'AXP', 'COF', 'DFS', 'FISV', 'FIS', 'GPN', 'JKHY', 'FLT', 'WU', 'RY', 'TD',
             'BMO', 'BNS', 'CM', 'NA', 'CNR', 'CP', 'ATD', 'WCN', 'BAM', 'MFC', 'SU', 'CNQ', 'IMO', 'CVE'
         ]
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_universe = []
+        for symbol in universe:
+            if symbol not in seen:
+                seen.add(symbol)
+                unique_universe.append(symbol)
+        
+        return unique_universe
     
     def analyze_stock_comprehensive(self, symbol, preloaded_hist: pd.DataFrame | None = None):
         """Comprehensive stock analysis with all available data"""
@@ -176,6 +187,11 @@ class AdvancedTradingAnalyzer:
                     analyst_score * 0.05
                 )
             
+            # Phase 3: Detect market regime and adjust targets/risk
+            regime_info = self._detect_market_regime(df)
+            market_regime = regime_info['regime']
+            regime_risk_mult = regime_info['risk_multiplier']
+            
             # Enhanced recommendation
             recommendation = self._generate_enhanced_recommendation(
                 prediction_result, overall_score, technical_score, fundamental_score, sentiment_score, sector_score, analyst_score
@@ -200,15 +216,14 @@ class AdvancedTradingAnalyzer:
             upside_potential = ((combined_target - current_price) / current_price) * 100
             
             # Professional risk-adjusted target
-            risk_multiplier = 1.0
+            risk_multiplier = regime_risk_mult
             if analysis['risk_level'] == 'High':
-                risk_multiplier = 0.8
+                risk_multiplier *= 0.9
             elif analysis['risk_level'] == 'Low':
-                risk_multiplier = 1.2
+                risk_multiplier *= 1.05
             
-            adjusted_upside = upside_potential * risk_multiplier
-            
-            # Calculate stop loss (professional approach)
+            adjusted_target = current_price * (1 + (prediction_result['prediction'] / 100) * risk_multiplier)
+            adjusted_upside = ((adjusted_target - current_price) / current_price) * 100
             stop_loss_price = current_price * 0.95  # 5% stop loss
             downside_risk = -5.0  # Maximum acceptable loss
             
@@ -236,11 +251,12 @@ class AdvancedTradingAnalyzer:
                     'analyst_score': analyst_score,
                     'overall_score': overall_score,
                     'analysis': analysis,
-                    # Professional additions
-                    'upside_potential': upside_potential,
-                    'adjusted_upside': adjusted_upside,
-                    'downside_risk': downside_risk,
-                    'target_price': combined_target,
+                'market_regime': market_regime,
+                # Professional additions
+                'upside_potential': upside_potential,
+                'adjusted_upside': adjusted_upside,
+                'stop_loss_price': stop_loss_price,
+                'earnings_quality': earnings.get('earnings_quality_score', 50),
                     'analyst_target': analyst_target,
                     'technical_target': technical_target,
                     'stop_loss_price': stop_loss_price,
@@ -266,22 +282,120 @@ class AdvancedTradingAnalyzer:
             # Bulk fetch OHLCV once for all symbols
             hist_map = self.data_fetcher.get_bulk_history(symbols, period="2y", interval="1d")
             
-            results = []
-            print(f"Starting advanced analysis of {max_stocks} stocks...")
+            # Prefill missing histories with per-symbol yfinance, then free Stooq fallback before threading
+            try:
+                missing = [s for s in symbols if not isinstance(hist_map.get(s), pd.DataFrame) or hist_map.get(s) is None or hist_map.get(s).empty]
+                if missing:
+                    import io, contextlib
+                    for s in missing:
+                        # Attempt a small per-symbol yfinance fetch first (suppressed output)
+                        try:
+                            buf_out, buf_err = io.StringIO(), io.StringIO()
+                            with contextlib.redirect_stdout(buf_out), contextlib.redirect_stderr(buf_err):
+                                tk = yf.Ticker(s)
+                                df_yf = tk.history(period="2y", interval="1d")
+                            if df_yf is not None and not df_yf.empty and {'Open','High','Low','Close','Volume'}.issubset(df_yf.columns):
+                                hist_map[s] = df_yf
+                                continue
+                        except Exception:
+                            pass
+
+                        # Then try Stooq variants
+                        stooq_df = self.data_fetcher._fetch_stooq_history(s)
+                        if (stooq_df is None or stooq_df.empty):
+                            # Try common variants
+                            variants = [f"{s}.us", s.lower(), f"{s.lower()}.us", s.replace('.', '-'), f"{s.replace('.', '-')}.us"]
+                            for var in variants:
+                                stooq_df = self.data_fetcher._fetch_stooq_history(var)
+                                if stooq_df is not None and not stooq_df.empty:
+                                    break
+                        hist_map[s] = stooq_df if (stooq_df is not None and not stooq_df.empty) else None
+            except Exception:
+                pass
             
-            for i, symbol in enumerate(symbols):
-                print(f"Analyzing {symbol} ({i+1}/{max_stocks})...")
-                pre_hist = hist_map.get(symbol) if isinstance(hist_map, dict) else None
-                result = self.analyze_stock_comprehensive(symbol, preloaded_hist=pre_hist)
-                if result:
-                    results.append(result)
-                # Gentle pacing to reduce 429s
-                time.sleep(0.15)
+            # Build a list of symbols that have data after prefill
+            valid_symbols = []
+            for s in symbols:
+                df_pre = hist_map.get(s)
+                if isinstance(df_pre, pd.DataFrame) and not df_pre.empty and {'Open','High','Low','Close','Volume'}.issubset(df_pre.columns):
+                    valid_symbols.append(s)
+            if not valid_symbols:
+                print("No valid histories after prefill. Falling back to curated large caps...")
+                fallback_syms = self._get_safe_large_caps()[:max_stocks]
+                hist_map = self.data_fetcher.get_bulk_history(fallback_syms, period="2y", interval="1d")
+                # Prefill for fallback set
+                try:
+                    missing_fb = [s for s in fallback_syms if not isinstance(hist_map.get(s), pd.DataFrame) or hist_map.get(s) is None or hist_map.get(s).empty]
+                    if missing_fb:
+                        import io, contextlib
+                        for s in missing_fb:
+                            try:
+                                buf_out, buf_err = io.StringIO(), io.StringIO()
+                                with contextlib.redirect_stdout(buf_out), contextlib.redirect_stderr(buf_err):
+                                    tk = yf.Ticker(s)
+                                    df_yf = tk.history(period="2y", interval="1d")
+                                if df_yf is not None and not df_yf.empty and {'Open','High','Low','Close','Volume'}.issubset(df_yf.columns):
+                                    hist_map[s] = df_yf
+                                    continue
+                            except Exception:
+                                pass
+                            stooq_df = self.data_fetcher._fetch_stooq_history(s)
+                            if (stooq_df is None or stooq_df.empty):
+                                variants = [f"{s}.us", s.lower(), f"{s.lower()}.us", s.replace('.', '-'), f"{s.replace('.', '-')}.us"]
+                                for var in variants:
+                                    stooq_df = self.data_fetcher._fetch_stooq_history(var)
+                                    if stooq_df is not None and not stooq_df.empty:
+                                        break
+                            hist_map[s] = stooq_df if (stooq_df is not None and not stooq_df.empty) else None
+                except Exception:
+                    pass
+                # Recompute valid symbols
+                valid_symbols = []
+                for s in fallback_syms:
+                    df_pre = hist_map.get(s)
+                    if isinstance(df_pre, pd.DataFrame) and not df_pre.empty and {'Open','High','Low','Close','Volume'}.issubset(df_pre.columns):
+                        valid_symbols.append(s)
+                if not valid_symbols:
+                    print("Fallback large caps also failed to provide histories.")
+                    return []
+
+            results = []
+            print(f"Starting advanced analysis of {len(valid_symbols)} stocks...")
+            
+            # Use a small thread pool since most work is local computations
+            def task(sym):
+                pre_hist = hist_map.get(sym) if isinstance(hist_map, dict) else None
+                return self.analyze_stock_comprehensive(sym, preloaded_hist=pre_hist)
+
+            max_workers = min(8, max(2, len(symbols)//25)) if len(symbols) > 50 else min(8, len(symbols))
+            with ThreadPoolExecutor(max_workers=max_workers or 4) as executor:
+                futures = {executor.submit(task, s): s for s in valid_symbols}
+                for i, fut in enumerate(as_completed(futures)):
+                    try:
+                        res = fut.result()
+                        if res:
+                            results.append(res)
+                    except Exception as e:
+                        # Continue on per-symbol errors
+                        pass
+                    # Small pacing in case any fallback network call triggers
+                    time.sleep(0.02)
             
             return results
         except Exception as e:
             print(f"Error in advanced analysis: {e}")
             return []
+
+    def _get_safe_large_caps(self):
+        """Curated list of highly reliable large-cap tickers for fallback."""
+        return [
+            'AAPL','MSFT','GOOGL','AMZN','META','NVDA','TSLA','NFLX','AMD','INTC',
+            'JPM','BAC','WFC','GS','MS','C','AXP','V','MA','PYPL',
+            'JNJ','PFE','UNH','ABBV','MRK','TMO','ABT','DHR','BMY','AMGN','LLY',
+            'KO','PEP','WMT','PG','HD','MCD','NKE','SBUX','DIS','CMCSA',
+            'VZ','T','CVX','XOM','COP','SLB','BP','SHEL','BHP','RIO',
+            'CAT','BA','MMM','GE','HON','LMT','NOC','RTX','DE','ETN'
+        ]
     
     def _create_comprehensive_features(self, df, info, news, insider, options, institutional, earnings, economic, sector, analyst):
         """Create comprehensive feature set with 200+ features"""
@@ -582,6 +696,39 @@ class AdvancedTradingAnalyzer:
         except Exception as e:
             print(f"Error in comprehensive analysis: {e}")
             return {'risk_level': 'Medium', 'risk_score': 50, 'market_condition': 'Neutral', 'sector_strength': 'Neutral'}
+
+    def _detect_market_regime(self, df):
+        """Phase 3: Detect Bull/Neutral/Bear regime using only OHLCV (no external data)."""
+        try:
+            # Use moving averages, volatility and drawdown
+            sma50 = df['SMA_50'].iloc[-1] if 'SMA_50' in df.columns and not pd.isna(df['SMA_50'].iloc[-1]) else df['Close'].rolling(50).mean().iloc[-1]
+            sma200 = df['SMA_200'].iloc[-1] if 'SMA_200' in df.columns and not pd.isna(df['SMA_200'].iloc[-1]) else df['Close'].rolling(200).mean().iloc[-1]
+            vol20 = df['Volatility_20'].iloc[-1] if 'Volatility_20' in df.columns and not pd.isna(df['Volatility_20'].iloc[-1]) else df['Close'].pct_change().rolling(20).std().iloc[-1]
+            recent_close = df['Close'].iloc[-1]
+            rolling_max = df['Close'].rolling(200).max().iloc[-1]
+            drawdown = (recent_close / rolling_max - 1.0) if rolling_max and not pd.isna(rolling_max) else 0.0
+
+            # Simple rule-based regime
+            if sma50 > sma200 and drawdown > -0.10 and vol20 < 0.03:
+                return {
+                    'regime': 'Bull',
+                    'risk_multiplier': 1.10,
+                    'weights': {'momentum': 1.1, 'mean_rev': 0.9}
+                }
+            elif sma50 < sma200 and (drawdown < -0.15 or vol20 > 0.04):
+                return {
+                    'regime': 'Bear',
+                    'risk_multiplier': 0.85,
+                    'weights': {'momentum': 0.9, 'mean_rev': 1.1}
+                }
+            else:
+                return {
+                    'regime': 'Neutral',
+                    'risk_multiplier': 1.0,
+                    'weights': {'momentum': 1.0, 'mean_rev': 1.0}
+                }
+        except Exception:
+            return {'regime': 'Neutral', 'risk_multiplier': 1.0, 'weights': {'momentum': 1.0, 'mean_rev': 1.0}}
     
     def _generate_enhanced_signals(self, df, news, insider, options, institutional, sector, analyst):
         """Generate enhanced trading signals"""

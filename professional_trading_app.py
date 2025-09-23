@@ -78,12 +78,24 @@ analysis_type = st.sidebar.selectbox(
 
 num_stocks = st.sidebar.slider("Number of Stocks", 10, 200, 50)
 
+# Cap filter and risk style
+cap_filter = st.sidebar.selectbox(
+    "Cap Filter",
+    ["Large Cap", "Mid Cap", "Small Cap", "All"]
+)
+
+risk_style = st.sidebar.selectbox(
+    "Risk Style",
+    ["Low Risk", "Balanced", "High Risk"]
+)
+
 market_focus = st.sidebar.selectbox(
     "Market Focus",
     ["S&P 500 Large Cap", "NASDAQ Growth", "Dow Jones Industrial", "Russell 2000 Small Cap", 
      "All Markets", "Sector Rotation", "Momentum Stocks", "Value Stocks", "Dividend Aristocrats"]
 )
 
+# Legacy controls (kept for layout, not used in light mode)
 risk_model = st.sidebar.selectbox(
     "Risk Model",
     ["Conservative (Low Beta)", "Balanced (Market Beta)", "Aggressive (High Beta)", "Momentum (High Volatility)"]
@@ -96,6 +108,36 @@ show_earnings_impact = st.sidebar.checkbox("Earnings Impact Analysis", value=Tru
 show_institutional_flow = st.sidebar.checkbox("Institutional Flow", value=True)
 
 # Main analysis button
+def get_symbols_by_cap(analyzer, cap_filter: str, count: int):
+    universe = analyzer.stock_universe
+    universe_size = len(universe)
+    
+    if cap_filter == "Large Cap":
+        # First 1/3 of universe (typically large caps)
+        end_idx = min(universe_size // 3, 200)
+        return universe[:max(10, min(count, end_idx))]
+    elif cap_filter == "Mid Cap":
+        # Middle 1/3 of universe
+        start = universe_size // 3
+        end = (universe_size * 2) // 3
+        available = universe[start:end]
+        return available[:max(10, min(count, len(available)))]
+    elif cap_filter == "Small Cap":
+        # Last 1/3 of universe (typically smaller caps)
+        start = (universe_size * 2) // 3
+        available = universe[start:]
+        return available[:max(10, min(count, len(available)))]
+    else:
+        # All markets - return from entire universe
+        return universe[:max(10, min(count, universe_size))]
+
+def filter_by_risk(results, risk_style: str):
+    if risk_style == "Low Risk":
+        return [r for r in results if r.get('risk_level') in ("Low", "Medium")]
+    if risk_style == "High Risk":
+        return [r for r in results if r.get('risk_level') in ("High", "Medium")]
+    return results
+
 if st.sidebar.button("🚀 Run Professional Analysis", type="primary"):
     
     # Progress tracking
@@ -130,8 +172,44 @@ if st.sidebar.button("🚀 Run Professional Analysis", type="primary"):
         progress_bar.progress(100)
         time.sleep(1)
         
-        # Run the analysis
-        results = analyzer.run_advanced_analysis(max_stocks=num_stocks)
+        # Prepare symbols by cap filter
+        symbols = get_symbols_by_cap(analyzer, cap_filter, num_stocks)
+        
+        # Run the analysis on selected symbols
+        results = analyzer.run_advanced_analysis(max_stocks=len(symbols), symbols=symbols)
+
+        # Auto-fallback: if no results, retry with curated fallback lists based on cap filter
+        if not results:
+            st.warning("Primary selection returned no results. Retrying with a curated fallback list for reliability...")
+            
+            if cap_filter == "Small Cap":
+                # Reliable small cap symbols
+                fallback_symbols = [
+                    'PLTR','CRWD','SNOW','DDOG','NET','OKTA','ZM','DOCU','TWLO','SQ',
+                    'ROKU','PINS','SNAP','UBER','LYFT','ABNB','DASH','PTON','FUBO','RKT',
+                    'OPEN','COMP','Z','ZG','ESTC','MDB','TEAM','WDAY','NOW','ZS'
+                ]
+            elif cap_filter == "Mid Cap":
+                # Reliable mid cap symbols  
+                fallback_symbols = [
+                    'REGN','GILD','BIIB','VRTX','ILMN','MRNA','ZTS','SYK','ISRG','EW',
+                    'BSX','MDT','SPGI','MCO','FIS','FISV','GPN','NDAQ','CME','ICE',
+                    'MKTX','CBOE','MSCI','TROW','BLK','SCHW','AMTD','ETFC','AMT','PLD'
+                ]
+            else:
+                # Large cap fallback (default)
+                fallback_symbols = [
+                    'AAPL','MSFT','GOOGL','AMZN','META','NVDA','TSLA','NFLX','AMD','INTC',
+                    'JPM','BAC','WFC','GS','MS','C','AXP','V','MA','PYPL',
+                    'JNJ','PFE','UNH','ABBV','MRK','TMO','ABT','DHR','BMY','AMGN','LLY',
+                    'KO','PEP','WMT','PG','HD','MCD','NKE','SBUX','DIS','CMCSA',
+                    'VZ','T','CVX','XOM','COP','SLB','CAT','BA','MMM','GE','HON'
+                ]
+            
+            results = analyzer.run_advanced_analysis(max_stocks=min(num_stocks, len(fallback_symbols)), symbols=fallback_symbols)
+        
+        # Post-filter by risk style for display
+        results = filter_by_risk(results, risk_style)
         
         progress_bar.empty()
         status_text.empty()
