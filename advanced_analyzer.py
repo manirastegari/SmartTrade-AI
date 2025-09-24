@@ -161,7 +161,43 @@ class AdvancedTradingAnalyzer:
             
             # Technology Hardware/Semiconductors
             'MRVL', 'MCHP', 'ADI', 'SLAB', 'SWKS', 'QRVO', 'CRUS', 'SYNA', 'AMAT', 'LRCX', 'KLAC',
-            'MU', 'WDC', 'STX', 'NTAP', 'HPQ', 'DELL', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META'
+            'MU', 'WDC', 'STX', 'NTAP', 'HPQ', 'DELL', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META',
+            
+            # === EXPANSION: 100 LARGE CAP STOCKS ===
+            # S&P 500 Large Cap Leaders
+            'BERKB', 'UNH', 'JNJ', 'XOM', 'JPM', 'WMT', 'CVX', 'LLY', 'PG', 'HD', 'ABBV', 'PFE', 'BAC', 'KO', 'AVGO',
+            'MRK', 'PEP', 'TMO', 'COST', 'DHR', 'ABT', 'ACN', 'MCD', 'CSCO', 'LIN', 'ADBE', 'WFC', 'VZ', 'CRM', 'NKE',
+            'TXN', 'RTX', 'NEE', 'QCOM', 'UPS', 'LOW', 'ORCL', 'PM', 'HON', 'UNP', 'AMGN', 'SBUX', 'IBM', 'T', 'SPGI',
+            'CAT', 'INTU', 'GS', 'AXP', 'BKNG', 'DE', 'MDT', 'BLK', 'ELV', 'GILD', 'ADP', 'TJX', 'VRTX', 'LRCX', 'SYK',
+            'MMM', 'CVS', 'TMUS', 'SCHW', 'MO', 'ZTS', 'FIS', 'BSX', 'EOG', 'DUK', 'SO', 'NSC', 'HUM', 'PLD', 'ITW',
+            'BMY', 'AON', 'CL', 'APD', 'EQIX', 'GE', 'SHW', 'CME', 'USB', 'MMC', 'REGN', 'FCX', 'PNC', 'EMR', 'COP',
+            'MCK', 'CSX', 'MSI', 'TGT', 'PSA', 'KLAC', 'AMAT', 'BIIB', 'ATVI', 'ADI', 'MU', 'ISRG', 'FISV', 'ECL',
+            
+            # === EXPANSION: 100 MEDIUM CAP STOCKS ===
+            # Russell Mid Cap Growth & Value
+            'ROKU', 'PINS', 'SNAP', 'TWTR', 'SPOT', 'ZM', 'DOCU', 'TWLO', 'OKTA', 'CRWD', 'NET', 'DDOG', 'SNOW', 'PLTR',
+            'RBLX', 'U', 'DKNG', 'PENN', 'MGM', 'LVS', 'WYNN', 'CZR', 'BYD', 'RSI', 'GLUU', 'HUYA', 'DOYU', 'BILI',
+            'IQ', 'FUBO', 'PARA', 'WBD', 'FOXA', 'EA', 'TTWO', 'ZNGA', 'CHWY', 'ETSY', 'MELI', 'SE', 'AFRM', 'UPST',
+            'SOFI', 'LC', 'LMND', 'ROOT', 'HOOD', 'COIN', 'MARA', 'RIOT', 'HUT', 'BITF', 'CAN', 'EBON', 'SOS', 'BTBT',
+            'GREE', 'OSTK', 'MSTR', 'RDFN', 'COMP', 'TREE', 'CARS', 'CVNA', 'VRM', 'SFT', 'CPNG', 'GRAB', 'DIDI',
+            'AI', 'C3AI', 'PATH', 'SMAR', 'FROG', 'BIGC', 'APPS', 'WORK', 'BOX', 'DBX', 'SEND', 'BAND', 'RNG', 'GTLB',
+            'ESTC', 'MDB', 'TEAM', 'VEEV', 'ZS', 'PANW', 'FTNT', 'ADSK', 'WDAY', 'NVAX', 'SRPT', 'BLUE', 'EDIT',
+            'CRSP', 'NTLA', 'BEAM', 'PRIME', 'VCYT', 'PACB', 'TWST', 'CDNA', 'FATE', 'SGMO', 'RGNX', 'RARE', 'FOLD',
+            'ARWR', 'IONS', 'EXAS', 'TDOC', 'DXCM', 'ALGN', 'PODD', 'ENPH', 'SEDG', 'RUN', 'NOVA', 'FSLR', 'SPWR',
+            'CSIQ', 'JKS', 'SOL', 'MAXN', 'PLUG', 'FCEL', 'BE', 'BLDP', 'HYLN', 'QS', 'CHPT', 'BLNK', 'EVG', 'CLNE',
+            
+            # === EXPANSION: 100 SMALL CAP STOCKS ===
+            # Russell 2000 Small Cap High Growth Potential
+            'SPCE', 'RKLB', 'ASTR', 'VACQ', 'HOL', 'SRAC', 'CCIV', 'THCB', 'ACTC', 'STPK', 'CLOV', 'WISH', 'BARK',
+            'OPEN', 'Z', 'ZG', 'PETQ', 'WOOF', 'FRPT', 'WAGS', 'PETM', 'PETS', 'CYBR', 'PING', 'SPLK', 'TENB', 'RPD',
+            'FEYE', 'QLYS', 'VRNS', 'MIME', 'PFPT', 'ALRM', 'SAIL', 'ASAN', 'MNDY', 'PD', 'BILL', 'DOCN', 'FSLY',
+            'ICLN', 'PBW', 'QCLN', 'LIT', 'MTTR', 'EQIX', 'PSA', 'EXR', 'AVB', 'EQR', 'UDR', 'ESS', 'MAA', 'CPT',
+            'AIV', 'STOR', 'WPC', 'NNN', 'ADC', 'STAG', 'LXP', 'GTY', 'EPRT', 'FCPT', 'GOOD', 'VNO', 'BXP', 'KIM',
+            'REG', 'TSM', 'ASML', 'NVO', 'UL', 'BP', 'TTE', 'E', 'SAN', 'BBVA', 'ING', 'TCOM', 'MOMO', 'SINA', 'SOHU',
+            'KMB', 'CHD', 'CLX', 'MNST', 'KDP', 'STZ', 'BF.B', 'TAP', 'DEO', 'YUM', 'CMG', 'DPZ', 'PZZA', 'WING',
+            'JACK', 'ARCO', 'DENN', 'CAKE', 'EAT', 'DRI', 'BLMN', 'LULU', 'UA', 'VFC', 'ROST', 'BURL', 'GPS', 'ANF',
+            'AEO', 'URBN', 'ZUMZ', 'TJX', 'COST', 'TGT', 'WMT', 'HD', 'LOW', 'EBAY', 'VIPS', 'YMM', 'DANG', 'WB',
+            'BIDU', 'NTES', 'RY', 'TD', 'BMO', 'BNS', 'CM', 'NA', 'CNR', 'CP', 'ATD', 'WCN', 'BAM', 'MFC', 'SU', 'CNQ'
         ]
         
         # Remove duplicates while preserving order
@@ -534,7 +570,51 @@ class AdvancedTradingAnalyzer:
             
             # Clean Energy
             'ENPH': 'Energy', 'SEDG': 'Energy', 'RUN': 'Energy', 'NOVA': 'Energy',
-            'FSLR': 'Energy', 'SPWR': 'Energy', 'CSIQ': 'Energy', 'JKS': 'Energy'
+            'FSLR': 'Energy', 'SPWR': 'Energy', 'CSIQ': 'Energy', 'JKS': 'Energy',
+            'SOL': 'Energy', 'MAXN': 'Energy', 'PLUG': 'Energy', 'FCEL': 'Energy',
+            'BE': 'Energy', 'BLDP': 'Energy', 'HYLN': 'Energy', 'QS': 'Energy',
+            'CHPT': 'Energy', 'BLNK': 'Energy', 'EVG': 'Energy', 'CLNE': 'Energy',
+            
+            # Additional Large Cap
+            'BERKB': 'Financial Services', 'LLY': 'Healthcare', 'AVGO': 'Technology',
+            'ACN': 'Technology', 'LIN': 'Materials', 'RTX': 'Industrials', 'UNP': 'Industrials',
+            'PM': 'Consumer Staples', 'SPGI': 'Financial Services', 'BKNG': 'Consumer Discretionary',
+            'DE': 'Industrials', 'BLK': 'Financial Services', 'ELV': 'Healthcare', 'ZTS': 'Healthcare',
+            'NSC': 'Industrials', 'HUM': 'Healthcare', 'ITW': 'Industrials', 'AON': 'Financial Services',
+            'MMC': 'Financial Services', 'MCK': 'Healthcare', 'CSX': 'Industrials', 'MSI': 'Technology',
+            'FISV': 'Technology', 'ECL': 'Materials', 'EMR': 'Industrials',
+            
+            # Medium Cap Additions
+            'ROKU': 'Technology', 'DKNG': 'Consumer Discretionary', 'PENN': 'Consumer Discretionary',
+            'MGM': 'Consumer Discretionary', 'LVS': 'Consumer Discretionary', 'WYNN': 'Consumer Discretionary',
+            'CZR': 'Consumer Discretionary', 'BYD': 'Consumer Discretionary', 'RSI': 'Consumer Discretionary',
+            'GLUU': 'Technology', 'HUYA': 'Technology', 'DOYU': 'Technology', 'BILI': 'Technology',
+            'IQ': 'Technology', 'FUBO': 'Technology', 'PARA': 'Communication Services',
+            'WBD': 'Communication Services', 'FOXA': 'Communication Services', 'EA': 'Technology',
+            'TTWO': 'Technology', 'ZNGA': 'Technology', 'RBLX': 'Technology', 'U': 'Technology',
+            
+            # Small Cap Additions
+            'SPCE': 'Technology', 'RKLB': 'Technology', 'ASTR': 'Technology', 'VACQ': 'Technology',
+            'HOL': 'Technology', 'SRAC': 'Technology', 'CCIV': 'Technology', 'THCB': 'Technology',
+            'ACTC': 'Technology', 'STPK': 'Technology', 'CLOV': 'Healthcare', 'WISH': 'Technology',
+            'WAGS': 'Consumer Discretionary', 'PETM': 'Consumer Discretionary', 'PETS': 'Consumer Discretionary',
+            'ICLN': 'Energy', 'PBW': 'Energy', 'QCLN': 'Energy', 'LIT': 'Materials',
+            'MTTR': 'Technology', 'STOR': 'Real Estate', 'WPC': 'Real Estate', 'NNN': 'Real Estate',
+            'ADC': 'Real Estate', 'STAG': 'Real Estate', 'LXP': 'Real Estate', 'GTY': 'Real Estate',
+            'EPRT': 'Real Estate', 'FCPT': 'Real Estate', 'GOOD': 'Real Estate', 'VNO': 'Real Estate',
+            
+            # International/ADRs
+            'TSM': 'Technology', 'ASML': 'Technology', 'NVO': 'Healthcare', 'UL': 'Consumer Staples',
+            'TTE': 'Energy', 'E': 'Energy', 'SAN': 'Financial Services', 'BBVA': 'Financial Services',
+            'ING': 'Financial Services', 'TCOM': 'Technology', 'MOMO': 'Technology', 'SINA': 'Technology',
+            'SOHU': 'Technology', 'KMB': 'Consumer Staples', 'CHD': 'Consumer Staples',
+            'CLX': 'Consumer Staples', 'MNST': 'Consumer Staples', 'KDP': 'Consumer Staples',
+            'STZ': 'Consumer Staples', 'BF.B': 'Consumer Staples', 'TAP': 'Consumer Staples',
+            'DEO': 'Consumer Staples', 'CMG': 'Consumer Discretionary', 'DPZ': 'Consumer Discretionary',
+            'PZZA': 'Consumer Discretionary', 'WING': 'Consumer Discretionary', 'JACK': 'Consumer Discretionary',
+            'ARCO': 'Consumer Discretionary', 'DENN': 'Consumer Discretionary', 'CAKE': 'Consumer Discretionary',
+            'EAT': 'Consumer Discretionary', 'DRI': 'Consumer Discretionary', 'BLMN': 'Consumer Discretionary',
+            'UA': 'Consumer Discretionary', 'VFC': 'Consumer Discretionary', 'ZUMZ': 'Consumer Discretionary'
         }
         
         return sector_mapping.get(symbol, 'Technology')  # Default to Technology for unknown symbols
