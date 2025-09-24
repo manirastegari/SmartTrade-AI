@@ -286,7 +286,7 @@ class AdvancedTradingAnalyzer:
                     'volume': df['Volume'].iloc[-1],
                     'market_cap': info.get('marketCap', 0),
                     'pe_ratio': info.get('trailingPE', 0),
-                    'sector': info.get('sector', 'Unknown'),
+                    'sector': self._get_sector_from_symbol(symbol, info),
                     'prediction': prediction_result['prediction'],
                     'confidence': prediction_result['confidence'],
                     'recommendation': recommendation['action'],
@@ -448,6 +448,96 @@ class AdvancedTradingAnalyzer:
             'VZ','T','CVX','XOM','COP','SLB','BP','SHEL','BHP','RIO',
             'CAT','BA','MMM','GE','HON','LMT','NOC','RTX','DE','ETN'
         ]
+    
+    def _get_sector_from_symbol(self, symbol, info):
+        """Get sector information with fallback mapping"""
+        # First try to get from info
+        sector = info.get('sector', None)
+        if sector and sector != 'Unknown':
+            return sector
+            
+        # Fallback sector mapping for common stocks
+        sector_mapping = {
+            # Technology
+            'AAPL': 'Technology', 'MSFT': 'Technology', 'GOOGL': 'Technology', 'GOOG': 'Technology',
+            'META': 'Technology', 'NVDA': 'Technology', 'TSLA': 'Technology', 'NFLX': 'Technology',
+            'AMD': 'Technology', 'INTC': 'Technology', 'CRM': 'Technology', 'ORCL': 'Technology',
+            'ADBE': 'Technology', 'CSCO': 'Technology', 'AVGO': 'Technology', 'TXN': 'Technology',
+            'QCOM': 'Technology', 'IBM': 'Technology', 'INTU': 'Technology', 'NOW': 'Technology',
+            'AMAT': 'Technology', 'ADI': 'Technology', 'LRCX': 'Technology', 'KLAC': 'Technology',
+            
+            # Healthcare
+            'JNJ': 'Healthcare', 'PFE': 'Healthcare', 'UNH': 'Healthcare', 'ABBV': 'Healthcare',
+            'MRK': 'Healthcare', 'TMO': 'Healthcare', 'ABT': 'Healthcare', 'DHR': 'Healthcare',
+            'BMY': 'Healthcare', 'AMGN': 'Healthcare', 'LLY': 'Healthcare', 'CVS': 'Healthcare',
+            'CI': 'Healthcare', 'ANTM': 'Healthcare', 'GILD': 'Healthcare', 'VRTX': 'Healthcare',
+            
+            # Financial Services
+            'JPM': 'Financial Services', 'BAC': 'Financial Services', 'WFC': 'Financial Services',
+            'GS': 'Financial Services', 'MS': 'Financial Services', 'C': 'Financial Services',
+            'AXP': 'Financial Services', 'V': 'Financial Services', 'MA': 'Financial Services',
+            'PYPL': 'Financial Services', 'COF': 'Financial Services', 'USB': 'Financial Services',
+            'PNC': 'Financial Services', 'TFC': 'Financial Services', 'BK': 'Financial Services',
+            
+            # Consumer Discretionary
+            'AMZN': 'Consumer Discretionary', 'HD': 'Consumer Discretionary', 'MCD': 'Consumer Discretionary',
+            'NKE': 'Consumer Discretionary', 'SBUX': 'Consumer Discretionary', 'DIS': 'Consumer Discretionary',
+            'LOW': 'Consumer Discretionary', 'TJX': 'Consumer Discretionary', 'BKNG': 'Consumer Discretionary',
+            
+            # Consumer Staples
+            'KO': 'Consumer Staples', 'PEP': 'Consumer Staples', 'WMT': 'Consumer Staples',
+            'PG': 'Consumer Staples', 'COST': 'Consumer Staples', 'CL': 'Consumer Staples',
+            
+            # Communication Services
+            'CMCSA': 'Communication Services', 'T': 'Communication Services', 'VZ': 'Communication Services',
+            'CHTR': 'Communication Services', 'TMUS': 'Communication Services',
+            
+            # Energy
+            'XOM': 'Energy', 'CVX': 'Energy', 'COP': 'Energy', 'EOG': 'Energy',
+            'SLB': 'Energy', 'PSX': 'Energy', 'VLO': 'Energy', 'MPC': 'Energy',
+            
+            # Industrials
+            'BA': 'Industrials', 'CAT': 'Industrials', 'MMM': 'Industrials', 'GE': 'Industrials',
+            'HON': 'Industrials', 'LMT': 'Industrials', 'NOC': 'Industrials', 'RTX': 'Industrials',
+            'DE': 'Industrials', 'ETN': 'Industrials', 'UPS': 'Industrials', 'FDX': 'Industrials',
+            
+            # Utilities
+            'NEE': 'Utilities', 'DUK': 'Utilities', 'SO': 'Utilities', 'AEP': 'Utilities',
+            'EXC': 'Utilities', 'XEL': 'Utilities', 'PPL': 'Utilities', 'ES': 'Utilities',
+            
+            # Real Estate
+            'AMT': 'Real Estate', 'PLD': 'Real Estate', 'CCI': 'Real Estate', 'EQIX': 'Real Estate',
+            'SPG': 'Real Estate', 'O': 'Real Estate', 'WELL': 'Real Estate', 'DLR': 'Real Estate',
+            
+            # Materials
+            'LIN': 'Materials', 'APD': 'Materials', 'ECL': 'Materials', 'FCX': 'Materials',
+            'NEM': 'Materials', 'SHW': 'Materials', 'VMC': 'Materials', 'MLM': 'Materials',
+            
+            # Biotechnology
+            'NVAX': 'Biotechnology', 'SRPT': 'Biotechnology', 'BLUE': 'Biotechnology', 'EDIT': 'Biotechnology',
+            'CRSP': 'Biotechnology', 'NTLA': 'Biotechnology', 'BEAM': 'Biotechnology', 'PRIME': 'Biotechnology',
+            'VCYT': 'Biotechnology', 'PACB': 'Biotechnology', 'TWST': 'Biotechnology', 'CDNA': 'Biotechnology',
+            'FATE': 'Biotechnology', 'SGMO': 'Biotechnology', 'RGNX': 'Biotechnology', 'RARE': 'Biotechnology',
+            'FOLD': 'Biotechnology', 'ARWR': 'Biotechnology', 'IONS': 'Biotechnology', 'EXAS': 'Biotechnology',
+            
+            # Cybersecurity
+            'CYBR': 'Technology', 'PING': 'Technology', 'SPLK': 'Technology', 'TENB': 'Technology',
+            'RPD': 'Technology', 'FEYE': 'Technology', 'QLYS': 'Technology', 'VRNS': 'Technology',
+            'MIME': 'Technology', 'PFPT': 'Technology', 'ALRM': 'Technology', 'SAIL': 'Technology',
+            
+            # Software
+            'ASAN': 'Technology', 'MNDY': 'Technology', 'PD': 'Technology', 'BILL': 'Technology',
+            'DOCN': 'Technology', 'FSLY': 'Technology',
+            
+            # Healthcare Technology
+            'TDOC': 'Healthcare', 'DXCM': 'Healthcare', 'ALGN': 'Healthcare', 'PODD': 'Healthcare',
+            
+            # Clean Energy
+            'ENPH': 'Energy', 'SEDG': 'Energy', 'RUN': 'Energy', 'NOVA': 'Energy',
+            'FSLR': 'Energy', 'SPWR': 'Energy', 'CSIQ': 'Energy', 'JKS': 'Energy'
+        }
+        
+        return sector_mapping.get(symbol, 'Technology')  # Default to Technology for unknown symbols
     
     def _create_comprehensive_features(self, df, info, news, insider, options, institutional, earnings, economic, sector, analyst):
         """Create comprehensive feature set with 200+ features"""

@@ -838,7 +838,7 @@ class AdvancedDataFetcher:
             # Market structure
             df['Higher_High'] = self._detect_higher_high(df['High'])
             df['Lower_Low'] = self._detect_lower_low(df['Low'])
-            df['Breakout'] = self._detect_breakout(df['High'], df['Low'], df['Close'])
+            df['Breakout'] = self._detect_breakout(df['High'], df['Low'], df['Close'], df['Volume'])
             df['Breakdown'] = self._detect_breakdown(df['High'], df['Low'], df['Close'])
             
             # --- Additional advanced local indicators (free, no-limit) ---
@@ -1123,13 +1123,6 @@ class AdvancedDataFetcher:
         except Exception as e:
             return pd.Series(0, index=low.index)
     
-    def _detect_breakout(self, high, low, close, lookback=20):
-        """Detect breakout pattern"""
-        try:
-            resistance = high.rolling(window=lookback).max().shift(1)
-            return (close > resistance).astype(int)
-        except Exception as e:
-            return pd.Series(0, index=close.index)
     
     def _detect_breakdown(self, high, low, close, lookback=20):
         """Detect breakdown pattern"""
