@@ -1,0 +1,55 @@
+{
+  "result_count": 5,
+  "avg_overlay": 19.076994404783854,
+  "first_items": [
+    {
+      "symbol": "NVDA",
+      "overall": 41.24615955238271,
+      "overlay": 19.076994404783854,
+      "prediction": -0.46807637045718353,
+      "confidence": 0.45602545681906115,
+      "recommendation": "STRONG SELL",
+      "signals": [
+        "MACD Bearish Below Zero - STRONG SELL",
+        "SuperTrend Downtrend - SELL"
+      ]
+    },
+    {
+      "symbol": "MSFT",
+      "overall": 16.426159552382707,
+      "overlay": 19.076994404783854,
+      "prediction": 1.924261791137195,
+      "confidence": 0.8,
+      "recommendation": "WEAK SELL",
+      "signals": [
+        "RSI Extremely Oversold - STRONG BUY",
+        "MACD Bearish Below Zero - STRONG SELL",
+        "Ichimoku Bearish Alignment - SELL"
+      ]
+    },
+    {
+      "symbol": "AAPL",
+      "overall": 23.426159552382707,
+      "overlay": 19.076994404783854,
+      "prediction": 2.753528902910664,
+      "confidence": 0.8,
+      "recommendation": "WEAK SELL",
+      "signals": [
+        "MACD Bearish Crossover - SELL",
+        "Ichimoku Bearish Alignment - SELL",
+        "SuperTrend Downtrend - SELL"
+      ]
+    }
+  ],
+  "breadth": {
+    "adv_pct_1d": 0.4,
+    "adv_dec_ratio_1d": 0.6666666666666666,
+    "pct_above_sma50": 0.4,
+    "pct_above_sma200": 0.8,
+    "new_highs_20d": 0.0,
+    "new_lows_20d": 0.2,
+    "nh_nl_ratio_20d": 0.0,
+    "median_ret_1d": -0.0070309993309082275,
+    "universe_size": 5
+  }
+}

@@ -53,6 +53,8 @@ class AdvancedTradingAnalyzer:
         self.feature_importance = {}
         self.enable_training = enable_training
         self.data_mode = data_mode
+        # Internal breadth context (computed once per run in run_advanced_analysis)
+        self._breadth_context = {}
         
     def _get_expanded_stock_universe(self):
         """Get expanded universe of 1000+ stocks"""
@@ -250,29 +252,33 @@ class AdvancedTradingAnalyzer:
             volatility_score = self._calculate_volatility_score(df)
             sector_score = self._calculate_sector_score(sector)
             analyst_score = self._calculate_analyst_score(analyst)
+            # Market overlay score from macro + breadth
+            overlay_score = self._calculate_market_overlay_score(economic, getattr(self, '_breadth_context', {}))
             
             # Overall score with adaptive weights for light mode
             if getattr(self, 'data_mode', 'light') == 'light':
                 overall_score = (
-                    technical_score * 0.30 +
+                    technical_score * 0.28 +
                     fundamental_score * 0.10 +
-                    sentiment_score * 0.20 +
-                    momentum_score * 0.20 +
-                    volume_score * 0.10 +
-                    volatility_score * 0.10 +
+                    sentiment_score * 0.18 +
+                    momentum_score * 0.18 +
+                    volume_score * 0.09 +
+                    volatility_score * 0.09 +
+                    overlay_score * 0.08 +
                     sector_score * 0.00 +  # neutralize weaker/approx sector in light mode
                     0.0  # analyst excluded
                 )
             else:
                 overall_score = (
-                    technical_score * 0.20 +
-                    fundamental_score * 0.20 +
-                    sentiment_score * 0.15 +
-                    momentum_score * 0.15 +
-                    volume_score * 0.10 +
-                    volatility_score * 0.10 +
+                    technical_score * 0.18 +
+                    fundamental_score * 0.18 +
+                    sentiment_score * 0.14 +
+                    momentum_score * 0.14 +
+                    volume_score * 0.09 +
+                    volatility_score * 0.09 +
+                    overlay_score * 0.09 +
                     sector_score * 0.05 +
-                    analyst_score * 0.05
+                    analyst_score * 0.04
                 )
             
             # Phase 3: Detect market regime and adjust targets/risk
@@ -338,6 +344,7 @@ class AdvancedTradingAnalyzer:
                     'sector_score': sector_score,
                     'analyst_score': analyst_score,
                     'overall_score': overall_score,
+                    'overlay_score': overlay_score,
                     'analysis': analysis,
                 'market_regime': market_regime,
                 # Professional additions
@@ -447,6 +454,12 @@ class AdvancedTradingAnalyzer:
                     print("Fallback large caps also failed to provide histories.")
                     return []
 
+            # Compute internal breadth once per run using hist_map (zero-cost local compute)
+            try:
+                self._breadth_context = self._compute_internal_breadth(hist_map, valid_symbols)
+            except Exception:
+                self._breadth_context = {}
+
             results = []
             print(f"Starting advanced analysis of {len(valid_symbols)} stocks...")
             
@@ -473,6 +486,69 @@ class AdvancedTradingAnalyzer:
         except Exception as e:
             print(f"Error in advanced analysis: {e}")
             return []
+
+    def _compute_internal_breadth(self, hist_map: dict, symbols: list[str]) -> dict:
+        """Compute internal market breadth metrics from already-fetched OHLCV.
+        Zero external calls. Uses last available data for each symbol.
+        """
+        try:
+            total = max(1, len(symbols))
+            adv_1d = 0
+            rets_1d = []
+            above_50 = 0
+            above_200 = 0
+            nh_20 = 0
+            nl_20 = 0
+
+            for s in symbols:
+                df = hist_map.get(s)
+                if not isinstance(df, pd.DataFrame) or df.empty or 'Close' not in df.columns:
+                    continue
+                close = df['Close']
+                if len(close) < 3:
+                    continue
+                r1 = float((close.iloc[-1] / close.iloc[-2]) - 1.0)
+                rets_1d.append(r1)
+                if r1 > 0:
+                    adv_1d += 1
+
+                # SMA checks (compute quickly here)
+                sma50 = close.rolling(50).mean().iloc[-1] if len(close) >= 50 else np.nan
+                sma200 = close.rolling(200).mean().iloc[-1] if len(close) >= 200 else np.nan
+                last = close.iloc[-1]
+                if not pd.isna(sma50) and last > sma50:
+                    above_50 += 1
+                if not pd.isna(sma200) and last > sma200:
+                    above_200 += 1
+
+                # 20-day highs/lows
+                if len(close) >= 20:
+                    if last >= close.rolling(20).max().iloc[-1]:
+                        nh_20 += 1
+                    if last <= close.rolling(20).min().iloc[-1]:
+                        nl_20 += 1
+
+            dec_1d = max(0, len(rets_1d) - adv_1d)
+            adv_pct_1d = adv_1d / max(1, len(rets_1d))
+            adv_dec_ratio_1d = adv_1d / max(1, dec_1d)
+            pct_above_50 = above_50 / total
+            pct_above_200 = above_200 / total
+            nhl_ratio_20 = nh_20 / max(1, nl_20)
+            median_ret_1d = float(np.median(rets_1d)) if rets_1d else 0.0
+
+            return {
+                'adv_pct_1d': adv_pct_1d,
+                'adv_dec_ratio_1d': adv_dec_ratio_1d,
+                'pct_above_sma50': pct_above_50,
+                'pct_above_sma200': pct_above_200,
+                'new_highs_20d': nh_20 / total,
+                'new_lows_20d': nl_20 / total,
+                'nh_nl_ratio_20d': nhl_ratio_20,
+                'median_ret_1d': median_ret_1d,
+                'universe_size': total,
+            }
+        except Exception as e:
+            return {}
 
     def _get_safe_large_caps(self):
         """Curated list of highly reliable large-cap tickers for fallback."""
@@ -744,10 +820,35 @@ class AdvancedTradingAnalyzer:
         
         # Economic features
         features['vix'] = economic['vix']
+        # Include expanded macro context if available
+        features['macro_spy_return_1d'] = economic.get('spy_return_1d', 0.0)
+        features['macro_spy_vol_20'] = economic.get('spy_vol_20', 0.0)
+        features['macro_usd_1d'] = economic.get('usd_change_1d', 0.0)
+        features['macro_gold_1d'] = economic.get('gold_change_1d', 0.0)
+        features['macro_oil_1d'] = economic.get('oil_change_1d', 0.0)
+        features['macro_yield_10y'] = economic.get('yield_10y', 0.0)
+        features['macro_yield_3m'] = economic.get('yield_3m', 0.0)
+        features['macro_yield_curve'] = economic.get('yield_curve_slope', 0.0)
+        features['macro_hyg_lqd_1d'] = economic.get('hyg_lqd_ratio_1d', 0.0)
+        features['macro_small_large_1d'] = economic.get('small_large_ratio_1d', 0.0)
+        features['macro_xly_xlp_1d'] = economic.get('xly_xlp_ratio_1d', 0.0)
+        features['macro_semis_spy_1d'] = economic.get('semis_spy_ratio_1d', 0.0)
+        # Static placeholders retained
         features['fed_rate'] = economic['fed_rate']
         features['gdp_growth'] = economic['gdp_growth']
         features['inflation'] = economic['inflation']
         features['unemployment'] = economic['unemployment']
+
+        # Internal breadth features (computed once per run)
+        bc = getattr(self, '_breadth_context', {}) or {}
+        features['breadth_adv_pct_1d'] = bc.get('adv_pct_1d', 0.5)
+        features['breadth_adv_dec_ratio_1d'] = bc.get('adv_dec_ratio_1d', 1.0)
+        features['breadth_pct_above_sma50'] = bc.get('pct_above_sma50', 0.5)
+        features['breadth_pct_above_sma200'] = bc.get('pct_above_sma200', 0.5)
+        features['breadth_new_highs_20d'] = bc.get('new_highs_20d', 0.1)
+        features['breadth_new_lows_20d'] = bc.get('new_lows_20d', 0.1)
+        features['breadth_nh_nl_ratio_20d'] = bc.get('nh_nl_ratio_20d', 1.0)
+        features['breadth_median_ret_1d'] = bc.get('median_ret_1d', 0.0)
         
         # Sector features
         features['sector_performance'] = sector['sector_performance']
@@ -1005,6 +1106,42 @@ class AdvancedTradingAnalyzer:
                 signals.append("Golden Cross - Short-term - BUY")
             elif current_price < sma20 < sma50:
                 signals.append("Death Cross - Short-term - SELL")
+
+            # SuperTrend direction
+            if 'SuperTrend_Dir' in df.columns:
+                st_dir = df['SuperTrend_Dir'].iloc[-1]
+                if st_dir == 1:
+                    signals.append("SuperTrend Uptrend - BUY")
+                elif st_dir == -1:
+                    signals.append("SuperTrend Downtrend - SELL")
+
+            # Donchian breakout/breakdown
+            if 'Donchian_Upper' in df.columns and 'Donchian_Lower' in df.columns:
+                du = df['Donchian_Upper'].iloc[-1]
+                dl = df['Donchian_Lower'].iloc[-1]
+                if current_price > du:
+                    signals.append("Donchian Breakout - BUY")
+                elif current_price < dl:
+                    signals.append("Donchian Breakdown - SELL")
+
+            # Keltner channel breakout and squeeze hint
+            if all(c in df.columns for c in ['Keltner_Upper','Keltner_Lower','Keltner_Width']):
+                ku = df['Keltner_Upper'].iloc[-1]
+                kl = df['Keltner_Lower'].iloc[-1]
+                kw = df['Keltner_Width']
+                if current_price > ku:
+                    signals.append("Keltner Channel Breakout - BUY")
+                elif current_price < kl:
+                    signals.append("Keltner Channel Breakdown - SELL")
+                # Squeeze detection: width at local percentile
+                try:
+                    recent_kw = kw.tail(50)
+                    if len(recent_kw) >= 20:
+                        pct = (recent_kw.rank(pct=True).iloc[-1])
+                        if pct < 0.2:
+                            signals.append("Keltner Squeeze Forming - Potential Expansion")
+                except Exception:
+                    pass
             
             # Volume signals
             volume_ratio = df['Volume_Ratio'].iloc[-1] if not pd.isna(df['Volume_Ratio'].iloc[-1]) else 1
@@ -1135,10 +1272,93 @@ class AdvancedTradingAnalyzer:
                 elif current_price < conversion < base:
                     score -= 15
             
+            # SuperTrend contribution
+            if 'SuperTrend_Dir' in df.columns:
+                st_dir = df['SuperTrend_Dir'].iloc[-1]
+                if st_dir == 1:
+                    score += 10
+                elif st_dir == -1:
+                    score -= 10
+
+            # Donchian breakout/breakdown
+            if 'Donchian_Upper' in df.columns and 'Donchian_Lower' in df.columns:
+                du = df['Donchian_Upper'].iloc[-1]
+                dl = df['Donchian_Lower'].iloc[-1]
+                if current_price > du:
+                    score += 10
+                elif current_price < dl:
+                    score -= 10
+
+            # Keltner channel breakout and squeeze
+            if all(c in df.columns for c in ['Keltner_Upper','Keltner_Lower','Keltner_Width']):
+                ku = df['Keltner_Upper'].iloc[-1]
+                kl = df['Keltner_Lower'].iloc[-1]
+                kw = df['Keltner_Width']
+                if current_price > ku:
+                    score += 8
+                elif current_price < kl:
+                    score -= 8
+                try:
+                    recent_kw = kw.tail(50)
+                    if len(recent_kw) >= 20:
+                        pct = (recent_kw.rank(pct=True).iloc[-1])
+                        if pct < 0.2:
+                            score += 5  # squeeze likely resolves into expansion
+                except Exception:
+                    pass
+            
             return max(0, min(100, score))
             
         except Exception as e:
             return 50
+
+    def _calculate_market_overlay_score(self, economic: dict, breadth: dict) -> float:
+        """Combine macro (one-shot) and internal breadth into a 0-100 overlay score."""
+        try:
+            # Base neutral score
+            score = 50.0
+            vix = float(economic.get('vix', 20.0))
+            yield_curve = float(economic.get('yield_curve_slope', 0.0))
+            usd = float(economic.get('usd_change_1d', 0.0))
+            oil = float(economic.get('oil_change_1d', 0.0))
+            xly_xlp = float(economic.get('xly_xlp_ratio_1d', 0.0))
+            semis = float(economic.get('semis_spy_ratio_1d', 0.0))
+            hyg_lqd = float(economic.get('hyg_lqd_ratio_1d', 0.0))
+
+            # Breadth
+            adv_pct = float(breadth.get('adv_pct_1d', 0.5))  # 0..1
+            pct50 = float(breadth.get('pct_above_sma50', 0.5))
+            pct200 = float(breadth.get('pct_above_sma200', 0.5))
+            nh_nl = float(breadth.get('nh_nl_ratio_20d', 1.0))  # >1 bullish
+
+            # Macro influences (heuristic)
+            # Lower VIX is bullish, high VIX is bearish
+            if vix < 18:
+                score += 5
+            elif vix > 28:
+                score -= 7
+
+            # Positive yield curve slope bullish, inverted bearish
+            score += max(-10, min(10, yield_curve * 50))  # ~ +/-10 pts
+
+            # Cyclical vs defensive
+            score += max(-5, min(5, xly_xlp * 100))
+
+            # Semis leadership as tech risk-on proxy
+            score += max(-5, min(5, semis * 100))
+
+            # Credit risk appetite
+            score += max(-5, min(5, hyg_lqd * 100))
+
+            # Breadth influences
+            score += (adv_pct - 0.5) * 30  # +/-15
+            score += (pct50 - 0.5) * 20    # +/-10
+            score += (pct200 - 0.5) * 20   # +/-10
+            score += max(-10, min(10, (nh_nl - 1.0) * 10))
+
+            return max(0.0, min(100.0, score))
+        except Exception:
+            return 50.0
     
     def _calculate_enhanced_fundamental_score(self, info, earnings):
         """Calculate enhanced fundamental score"""

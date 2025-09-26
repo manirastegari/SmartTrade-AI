@@ -69,9 +69,11 @@ class AdvancedDataFetcher:
         if self.data_mode != "light":
             try:
                 from transformers import pipeline  # type: ignore
+                global TRANSFORMERS_AVAILABLE
                 self.finbert = pipeline("sentiment-analysis", 
                                         model="ProsusAI/finbert", 
                                         tokenizer="ProsusAI/finbert")
+                TRANSFORMERS_AVAILABLE = True
             except Exception:
                 self.finbert = None
         
@@ -393,10 +395,120 @@ class AdvancedDataFetcher:
                 np.random.seed(43)  # Different seed for VIX
                 vix_proxy = max(10.0, min(40.0, np.random.normal(18.0, 5.0)))
 
+            # === Additional one-shot macro context (rate-limit friendly) ===
+            def _fetch_any(symbols: list[str]):
+                """Try multiple symbols/sources for a daily series and return the first working DataFrame."""
+                for sym in symbols:
+                    try:
+                        df_try = _safe_yf_daily(sym)
+                        if df_try is not None and not df_try.empty:
+                            return df_try
+                    except Exception:
+                        pass
+                    try:
+                        df_try = self._fetch_stooq_history(sym)
+                        if df_try is not None and not df_try.empty:
+                            return df_try
+                    except Exception:
+                        pass
+                    try:
+                        df_try = self._fetch_simple_web_data(sym)
+                        if df_try is not None and not df_try.empty:
+                            return df_try
+                    except Exception:
+                        pass
+                return None
+
+            def _change_1d(df):
+                try:
+                    close = df['Close']
+                    if len(close) >= 2:
+                        return float((close.iloc[-1] / close.iloc[-2]) - 1.0)
+                except Exception:
+                    pass
+                return 0.0
+
+            def _ratio_change_1d(df_a, df_b):
+                try:
+                    ca, cb = df_a['Close'], df_b['Close']
+                    if len(ca) >= 2 and len(cb) >= 2:
+                        r_today = float(ca.iloc[-1] / cb.iloc[-1])
+                        r_yday = float(ca.iloc[-2] / cb.iloc[-2])
+                        return (r_today / r_yday) - 1.0
+                except Exception:
+                    pass
+                return 0.0
+
+            # USD index proxy (DXY futures or UUP ETF)
+            usd_df = _fetch_any(["DX=F", "DX-Y.NYB", "UUP"])  # Try multiple symbols
+            usd_change_1d = _change_1d(usd_df) if usd_df is not None else 0.0
+
+            # Gold and Oil proxies
+            gold_df = _fetch_any(["GC=F", "GLD"])  # Gold futures or GLD ETF
+            gold_change_1d = _change_1d(gold_df) if gold_df is not None else 0.0
+
+            oil_df = _fetch_any(["CL=F", "USO"])  # WTI futures or USO ETF
+            oil_change_1d = _change_1d(oil_df) if oil_df is not None else 0.0
+
+            # Treasury yields and curve slope
+            tnx_df = _fetch_any(["^TNX"])  # 10y yield index (~10x percent)
+            irx_df = _fetch_any(["^IRX"])  # 13w T-bill
+            try:
+                y10_raw = float(tnx_df['Close'].iloc[-1]) if tnx_df is not None and not tnx_df.empty else None
+                if y10_raw is None:
+                    yield_10y = 4.0
+                else:
+                    # ^TNX is typically 10x the percentage (e.g., 46.5 => 4.65%)
+                    yield_10y = y10_raw / 10.0 if y10_raw > 20 else (y10_raw if y10_raw > 1 else y10_raw * 100.0)
+            except Exception:
+                yield_10y = 4.0
+            try:
+                y3m_raw = float(irx_df['Close'].iloc[-1]) if irx_df is not None and not irx_df.empty else None
+                if y3m_raw is None:
+                    yield_3m = 5.0
+                else:
+                    # ^IRX can be percent (e.g., 5.25) or 100x percent (e.g., 525)
+                    if y3m_raw > 100:
+                        yield_3m = y3m_raw / 100.0
+                    elif y3m_raw > 1:
+                        yield_3m = y3m_raw
+                    else:
+                        yield_3m = y3m_raw * 100.0
+            except Exception:
+                yield_3m = 5.0
+            yield_curve_slope = float(yield_10y - yield_3m)
+
+            # Credit risk proxy (HYG/LQD), Small vs Large (IWM/SPY), XLY/XLP (cyclical vs defensive), Semis vs Market (SMH/SOXX vs SPY)
+            hyg_df = _fetch_any(["HYG"])
+            lqd_df = _fetch_any(["LQD"])
+            hyg_lqd_ratio_1d = _ratio_change_1d(hyg_df, lqd_df) if (hyg_df is not None and lqd_df is not None) else 0.0
+
+            iwm_df = _fetch_any(["IWM"])
+            spy_df_for_ratio = _fetch_any(["SPY", "IVV", "VOO"])  # Reuse SPY family
+            small_large_ratio_1d = _ratio_change_1d(iwm_df, spy_df_for_ratio) if (iwm_df is not None and spy_df_for_ratio is not None) else 0.0
+
+            xly_df = _fetch_any(["XLY"])
+            xlp_df = _fetch_any(["XLP"])
+            xly_xlp_ratio_1d = _ratio_change_1d(xly_df, xlp_df) if (xly_df is not None and xlp_df is not None) else 0.0
+
+            smh_df = _fetch_any(["SMH", "SOXX"])  # Try SMH then SOXX
+            semis_spy_ratio_1d = _ratio_change_1d(smh_df, spy_df_for_ratio) if (smh_df is not None and spy_df_for_ratio is not None) else 0.0
+
             ctx = {
                 'spy_return_1d': spy_return_1d,
                 'spy_vol_20': spy_vol_20,
                 'vix_proxy': vix_proxy,
+                # Additional macro
+                'usd_change_1d': usd_change_1d,
+                'gold_change_1d': gold_change_1d,
+                'oil_change_1d': oil_change_1d,
+                'yield_10y': yield_10y,
+                'yield_3m': yield_3m,
+                'yield_curve_slope': yield_curve_slope,
+                'hyg_lqd_ratio_1d': hyg_lqd_ratio_1d,
+                'small_large_ratio_1d': small_large_ratio_1d,
+                'xly_xlp_ratio_1d': xly_xlp_ratio_1d,
+                'semis_spy_ratio_1d': semis_spy_ratio_1d,
             }
             self._market_context_cache = ctx
             self._market_context_ts = datetime.now()
@@ -573,6 +685,18 @@ class AdvancedDataFetcher:
                     'vix': market_ctx.get('vix_proxy', 20.0),
                     'spy_return_1d': market_ctx.get('spy_return_1d', 0.0),
                     'spy_vol_20': market_ctx.get('spy_vol_20', 0.02),
+                    # Added macro context (one-shot, cached)
+                    'usd_change_1d': market_ctx.get('usd_change_1d', 0.0),
+                    'gold_change_1d': market_ctx.get('gold_change_1d', 0.0),
+                    'oil_change_1d': market_ctx.get('oil_change_1d', 0.0),
+                    'yield_10y': market_ctx.get('yield_10y', 0.0),
+                    'yield_3m': market_ctx.get('yield_3m', 0.0),
+                    'yield_curve_slope': market_ctx.get('yield_curve_slope', 0.0),
+                    'hyg_lqd_ratio_1d': market_ctx.get('hyg_lqd_ratio_1d', 0.0),
+                    'small_large_ratio_1d': market_ctx.get('small_large_ratio_1d', 0.0),
+                    'xly_xlp_ratio_1d': market_ctx.get('xly_xlp_ratio_1d', 0.0),
+                    'semis_spy_ratio_1d': market_ctx.get('semis_spy_ratio_1d', 0.0),
+                    # Static economic placeholders
                     'fed_rate': 5.25,
                     'gdp_growth': 2.5,
                     'inflation': 3.0,
@@ -604,6 +728,18 @@ class AdvancedDataFetcher:
                     'vix': market_ctx.get('vix_proxy', 20.0),
                     'spy_return_1d': market_ctx.get('spy_return_1d', 0.0),
                     'spy_vol_20': market_ctx.get('spy_vol_20', 0.02),
+                    # Added macro context (one-shot, cached)
+                    'usd_change_1d': market_ctx.get('usd_change_1d', 0.0),
+                    'gold_change_1d': market_ctx.get('gold_change_1d', 0.0),
+                    'oil_change_1d': market_ctx.get('oil_change_1d', 0.0),
+                    'yield_10y': market_ctx.get('yield_10y', 0.0),
+                    'yield_3m': market_ctx.get('yield_3m', 0.0),
+                    'yield_curve_slope': market_ctx.get('yield_curve_slope', 0.0),
+                    'hyg_lqd_ratio_1d': market_ctx.get('hyg_lqd_ratio_1d', 0.0),
+                    'small_large_ratio_1d': market_ctx.get('small_large_ratio_1d', 0.0),
+                    'xly_xlp_ratio_1d': market_ctx.get('xly_xlp_ratio_1d', 0.0),
+                    'semis_spy_ratio_1d': market_ctx.get('semis_spy_ratio_1d', 0.0),
+                    # Static economic placeholders
                     'fed_rate': 5.25,
                     'gdp_growth': 2.5,
                     'inflation': 3.0,
@@ -858,6 +994,55 @@ class AdvancedDataFetcher:
             df['Keltner_Upper'] = kc_ema + 2 * kc_atr
             df['Keltner_Lower'] = kc_ema - 2 * kc_atr
             df['Keltner_Width'] = (df['Keltner_Upper'] - df['Keltner_Lower']) / df['Close']
+
+            # SuperTrend (ATR 14, multiplier 3) - zero cost, local calc
+            try:
+                st_mult = 3.0
+                # Use existing ATR(14) if available; otherwise compute a simple TR mean
+                atr_st = df['ATR'] if 'ATR' in df.columns else (df['High'] - df['Low']).rolling(14).mean()
+                hl2 = (df['High'] + df['Low']) / 2
+                basic_upper = hl2 + st_mult * atr_st
+                basic_lower = hl2 - st_mult * atr_st
+                # Final upper/lower bands
+                fub = basic_upper.copy()
+                flb = basic_lower.copy()
+                for i in range(1, len(df)):
+                    # Final Upper Band
+                    prev_fub = fub.iloc[i-1]
+                    prev_close = df['Close'].iloc[i-1]
+                    curr_bub = basic_upper.iloc[i]
+                    fub.iloc[i] = curr_bub if (curr_bub < prev_fub or prev_close > prev_fub) else prev_fub
+                    # Final Lower Band
+                    prev_flb = flb.iloc[i-1]
+                    curr_blb = basic_lower.iloc[i]
+                    flb.iloc[i] = curr_blb if (curr_blb > prev_flb or prev_close < prev_flb) else prev_flb
+                # SuperTrend line and direction
+                st = pd.Series(index=df.index, dtype=float)
+                st_dir = pd.Series(1, index=df.index, dtype=int)
+                # Initialize
+                st.iloc[0] = fub.iloc[0] if df['Close'].iloc[0] <= fub.iloc[0] else flb.iloc[0]
+                st_dir.iloc[0] = -1 if df['Close'].iloc[0] <= fub.iloc[0] else 1
+                for i in range(1, len(df)):
+                    if st.iloc[i-1] == fub.iloc[i-1]:
+                        if df['Close'].iloc[i] <= fub.iloc[i]:
+                            st.iloc[i] = fub.iloc[i]
+                            st_dir.iloc[i] = -1
+                        else:
+                            st.iloc[i] = flb.iloc[i]
+                            st_dir.iloc[i] = 1
+                    else:  # previous was FLB
+                        if df['Close'].iloc[i] >= flb.iloc[i]:
+                            st.iloc[i] = flb.iloc[i]
+                            st_dir.iloc[i] = 1
+                        else:
+                            st.iloc[i] = fub.iloc[i]
+                            st_dir.iloc[i] = -1
+                df['SuperTrend'] = st
+                df['SuperTrend_Dir'] = st_dir  # 1 uptrend, -1 downtrend
+            except Exception:
+                # Fallback: fill with neutral values
+                df['SuperTrend'] = ((df['High'] + df['Low']) / 2).fillna(method='ffill')
+                df['SuperTrend_Dir'] = 0
 
             # Aroon (25)
             aroon_p = 25

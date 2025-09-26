@@ -18,6 +18,10 @@
 - **🛡️ Bulletproof Data**: 18 fallback sources, 100% reliability
 - **🔄 Session Consistency**: Same stocks across analysis types
 - **💎 Hidden Gem Coverage**: 100% capture of high-potential categories
+- **🌐 Macro + Breadth Overlay (New)**: One-shot macro context and internal breadth integrated directly into scoring and UI
+- **🧭 Market Health Panel (New)**: Overlay score, Advancers %, % Above 50/200 SMA, VIX and Yield Curve in the Professional Terminal
+- **📈 New Zero-Cost Indicators (New)**: SuperTrend, Donchian Channels, Keltner Channels used in signals and technical scoring
+- **🧠 ML Training Toggle (New)**: Optional model training to learn from macro + breadth + indicators for higher-accuracy predictions
 
 A comprehensive, AI-powered trading analysis platform that provides real-time stock market analysis and trading recommendations for US and Canadian markets. **Perfect for TFSA investing** with institutional-grade analysis that costs **$0/month** using only free data sources.
 

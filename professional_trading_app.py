@@ -94,7 +94,7 @@ st.markdown("""
 # Initialize analyzer
 @st.cache_resource
 def get_analyzer():
-    # Use light data mode and disable training to avoid heavy, rate-limited calls
+    # Use light data mode by default (rate-limit friendly). ML training can be toggled below.
     return AdvancedTradingAnalyzer(enable_training=False, data_mode="light")
 
 analyzer = get_analyzer()
@@ -181,7 +181,14 @@ analysis_type = st.sidebar.selectbox(
     ["Institutional Grade", "Hedge Fund Style", "Investment Bank Level", "Quant Research", "Risk Management"]
 )
 
-num_stocks = st.sidebar.slider("Number of Stocks", 20, 400, 150)  # Expanded range for comprehensive coverage
+# Toggle ML training (optional: longer run, potentially higher accuracy)
+enable_ml_training = st.sidebar.checkbox("Enable ML Training (longer, more accurate)", value=False)
+analyzer.enable_training = bool(enable_ml_training)
+
+# Dynamic stock count slider based on universe size
+max_available = max(50, min(len(analyzer.stock_universe), 1200))
+default_count = min(300, max_available)
+num_stocks = st.sidebar.slider("Number of Stocks", 20, max_available, default_count)
 
 # Cap filter and risk style
 cap_filter = st.sidebar.selectbox(
@@ -272,7 +279,7 @@ def get_comprehensive_symbol_selection(analyzer, cap_filter: str, market_focus: 
     
     # Get base symbols by cap filter
     if cap_filter == "Large Cap":
-        end_idx = min(universe_size // 3, 200)
+        end_idx = universe_size // 3
         base_symbols = universe[:end_idx]
     elif cap_filter == "Mid Cap":
         start = universe_size // 3
@@ -339,6 +346,7 @@ def apply_analysis_type_adjustments(results, analysis_type: str):
     for result in results:
         adjusted_result = result.copy()
         
+        overlay = result.get('overlay_score', 50)
         if analysis_type == "Institutional Grade":
             # Favor stability, liquidity, and established companies
             # Boost scores for large cap, low volatility, high volume
@@ -347,6 +355,11 @@ def apply_analysis_type_adjustments(results, analysis_type: str):
                 stability_bonus += 5
             if result.get('volume_score', 50) > 70:  # High volume = good liquidity
                 stability_bonus += 5
+            # Overlay context: penalize in poor macro breadth conditions
+            if overlay < 40:
+                stability_bonus -= 3
+            elif overlay > 60:
+                stability_bonus += 2
             adjusted_result['overall_score'] = min(100, result['overall_score'] + stability_bonus)
             adjusted_result['analysis_focus'] = "Institutional: Stability & Liquidity"
             
@@ -357,6 +370,11 @@ def apply_analysis_type_adjustments(results, analysis_type: str):
                 momentum_bonus += 8
             if result.get('volatility_score', 50) > 60:  # Higher volatility = more opportunity
                 momentum_bonus += 5
+            # Overlay tailwind helps momentum
+            if overlay > 60:
+                momentum_bonus += 3
+            elif overlay < 40:
+                momentum_bonus -= 3
             adjusted_result['overall_score'] = min(100, result['overall_score'] + momentum_bonus)
             adjusted_result['analysis_focus'] = "Hedge Fund: Momentum & Alpha"
             
@@ -367,6 +385,9 @@ def apply_analysis_type_adjustments(results, analysis_type: str):
                 fundamental_bonus += 8
             if result.get('analyst_score', 50) > 60:
                 fundamental_bonus += 5
+            # Overlay supports strong macro conditions
+            if overlay > 60:
+                fundamental_bonus += 2
             adjusted_result['overall_score'] = min(100, result['overall_score'] + fundamental_bonus)
             adjusted_result['analysis_focus'] = "Investment Bank: Fundamentals & Coverage"
             
@@ -377,6 +398,9 @@ def apply_analysis_type_adjustments(results, analysis_type: str):
                 technical_bonus += 10
             if result.get('confidence', 0) > 0.8:  # High confidence in predictions
                 technical_bonus += 5
+            # Overlay assists technical follow-through
+            if overlay > 60:
+                technical_bonus += 2
             adjusted_result['overall_score'] = min(100, result['overall_score'] + technical_bonus)
             adjusted_result['analysis_focus'] = "Quant: Technical & Statistical"
             
@@ -389,6 +413,9 @@ def apply_analysis_type_adjustments(results, analysis_type: str):
                 risk_bonus += 3
             if result.get('prediction', 0) > 0 and result.get('confidence', 0) > 0.7:  # Positive with high confidence
                 risk_bonus += 5
+            # Macro overlay risk aversion in poor conditions
+            if overlay < 40:
+                risk_bonus -= 5
             adjusted_result['overall_score'] = min(100, result['overall_score'] + risk_bonus)
             adjusted_result['analysis_focus'] = "Risk Mgmt: Downside Protection"
         
@@ -564,6 +591,44 @@ if st.sidebar.button("🚀 Run Professional Analysis", type="primary"):
                 <div class="price-big {}">{:+.1f}%</div>
             </div>
             """.format(color_class, avg_upside), unsafe_allow_html=True)
+
+        # Market Health: overlay, breadth, macro (one-shot)
+        st.markdown("### 🌐 Market Health (Macro + Breadth)")
+        try:
+            bc = getattr(analyzer, '_breadth_context', {}) or {}
+            mc = analyzer.data_fetcher.get_market_context()
+            colA, colB, colC, colD = st.columns(4)
+            with colA:
+                avg_overlay = np.mean([r.get('overlay_score', 50) for r in results])
+                st.markdown(f"""
+                <div class="metric-card">
+                    <h4>Overlay Score</h4>
+                    <div class="price-big">{avg_overlay:.1f}/100</div>
+                </div>
+                """, unsafe_allow_html=True)
+            with colB:
+                st.markdown(f"""
+                <div class="metric-card">
+                    <h4>Advancers (1D)</h4>
+                    <div class="price-big">{bc.get('adv_pct_1d', 0.5)*100:.1f}%</div>
+                </div>
+                """, unsafe_allow_html=True)
+            with colC:
+                st.markdown(f"""
+                <div class="metric-card">
+                    <h4>% Above 50/200 SMA</h4>
+                    <div class="price-big">{bc.get('pct_above_sma50', 0.5)*100:.0f}% / {bc.get('pct_above_sma200', 0.5)*100:.0f}%</div>
+                </div>
+                """, unsafe_allow_html=True)
+            with colD:
+                st.markdown(f"""
+                <div class="metric-card">
+                    <h4>VIX • Curve Slope</h4>
+                    <div class="price-big">{mc.get('vix_proxy', 20):.1f} • {mc.get('yield_curve_slope', 0.0):+.2f}</div>
+                </div>
+                """, unsafe_allow_html=True)
+        except Exception:
+            pass
         
         # Top BUY Opportunities - Best Profit Potential
         st.markdown("### 🏆 Top BUY Opportunities (Best Profit Potential)")

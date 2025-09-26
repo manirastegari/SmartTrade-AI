@@ -35,8 +35,14 @@ def main():
     with st.sidebar:
         st.header("🎯 Advanced Analysis Controls")
         
-        # Analysis settings
-        max_stocks = st.slider("Number of Stocks to Analyze", 20, 200, 100)
+        # Advanced settings
+        enable_ml_training = st.checkbox("Enable ML Training (longer, more accurate)", value=False)
+        analyzer.enable_training = bool(enable_ml_training)
+
+        # Analysis settings with dynamic upper bound
+        max_available = max(50, min(len(analyzer.stock_universe), 1200))
+        default_count = min(300, max_available)
+        max_stocks = st.slider("Number of Stocks to Analyze", 20, max_available, default_count)
         
         # Analysis type
         analysis_type = st.selectbox(
