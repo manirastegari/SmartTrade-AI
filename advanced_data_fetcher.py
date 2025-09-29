@@ -36,8 +36,6 @@ try:
 except ImportError:
     VADER_AVAILABLE = False
 
-TRANSFORMERS_AVAILABLE = False  # Lazy import in __init__ when needed
-
 class AdvancedDataFetcher:
     """Advanced data fetcher with maximum free analysis capabilities"""
     
@@ -53,6 +51,15 @@ class AdvancedDataFetcher:
         # Initialize free APIs
         self.alpha_vantage_key = alpha_vantage_key
         self.fred_api_key = fred_api_key
+        
+        # Initialize cost-effective data sources
+        try:
+            from cost_effective_data_sources import CostEffectiveDataManager
+            self.cost_effective_data = CostEffectiveDataManager()
+            print("🆓 Cost-effective data sources initialized - FREE REAL DATA")
+        except ImportError:
+            self.cost_effective_data = None
+            print("⚠️ Cost-effective data sources not available")
         
         if ALPHA_VANTAGE_AVAILABLE and alpha_vantage_key:
             self.av_ts = TimeSeries(key=alpha_vantage_key, output_format='pandas')
@@ -75,15 +82,15 @@ class AdvancedDataFetcher:
                                         tokenizer="ProsusAI/finbert")
                 TRANSFORMERS_AVAILABLE = True
             except Exception:
-                self.finbert = None
+                pass
         
         # Cache for market context (SPY/VIXY once per run)
         self._market_context_cache = None
         self._market_context_ts = None
         
-        # Rate limiting protection
+        # Rate limiting protection (increased delay for better reliability)
         self._last_yfinance_call = 0
-        self._yfinance_delay = 0.1  # 100ms between calls
+        self._yfinance_delay = 0.2  # 200ms between calls for better reliability
         
     def _fetch_simple_web_data(self, symbol: str):
         """Simple web scraping fallback for basic market data"""
@@ -162,7 +169,7 @@ class AdvancedDataFetcher:
             return None
 
     def _fetch_yfinance_with_fallback(self, symbol: str):
-        """Fetch data from yfinance with rate limiting and fallback"""
+        """Fetch data from yfinance with multiple methods and fallbacks"""
         import time, warnings, logging
         
         # Rate limiting protection
@@ -170,42 +177,274 @@ class AdvancedDataFetcher:
         if current_time - self._last_yfinance_call < self._yfinance_delay:
             time.sleep(self._yfinance_delay)
         
-        try:
-            # Suppress all warnings and logging for yfinance
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                
-                # Suppress yfinance logging
-                yf_logger = logging.getLogger('yfinance')
-                original_level = yf_logger.level
-                yf_logger.setLevel(logging.CRITICAL)
-                
-                try:
-                    # Suppress yfinance noisy prints
-                    import io, contextlib
-                    ticker = yf.Ticker(symbol)
-                    buf_out, buf_err = io.StringIO(), io.StringIO()
-                    with contextlib.redirect_stdout(buf_out), contextlib.redirect_stderr(buf_err):
-                        hist = ticker.history(period="2y", interval="1d")
-                    
-                    self._last_yfinance_call = time.time()
-                    
-                    if hist is not None and not hist.empty:
+        # Try cost-effective sources FIRST for real data at $0 cost
+        if self.cost_effective_data:
+            try:
+                print(f"🆓 Trying cost-effective sources for {symbol}...")
+                cost_effective_data = self.cost_effective_data.get_stock_data(symbol, "2y")
+                if cost_effective_data is not None and not cost_effective_data.empty and len(cost_effective_data) > 20:
+                    if self._validate_market_data(cost_effective_data, symbol):
+                        self._last_yfinance_call = time.time()
+                        print(f"✅ FREE DATA SUCCESS: {len(cost_effective_data)} days for {symbol}")
+                        return cost_effective_data
+                    else:
+                        print(f"⚠️ Free data validation failed for {symbol}")
+            except Exception as e:
+                print(f"❌ Free data error for {symbol}: {str(e)[:50]}")
+        
+        # Fallback to free sources only if paid sources fail
+        print(f"🔄 Trying free sources for {symbol}...")
+        methods = [
+            ("Yahoo Direct API", self._try_yahoo_direct_api),
+            ("ticker.history", self._try_ticker_history),
+            ("yf.download", self._try_yf_download),
+            ("different periods", self._try_different_periods)
+        ]
+        
+        for method_name, method_func in methods:
+            try:
+                hist = method_func(symbol)
+                if hist is not None and not hist.empty and len(hist) > 50:
+                    if self._validate_market_data(hist, symbol):
+                        self._last_yfinance_call = time.time()
                         return hist
-                finally:
-                    # Restore original logging level
-                    yf_logger.setLevel(original_level)
-                
-        except Exception:
-            # Silently fail for individual stocks - this is expected
-            pass
+                    else:
+                        print(f"⚠️ {method_name} data validation failed for {symbol}")
+            except Exception as e:
+                print(f"⚠️ {method_name} failed for {symbol}: {str(e)[:50]}")
+                continue
         
         # Fallback to Stooq
+        print(f"🔄 Trying Stooq fallback for {symbol}")
         stooq_data = self._fetch_stooq_history(symbol)
         if stooq_data is not None and not stooq_data.empty:
-            return stooq_data
+            if self._validate_market_data(stooq_data, symbol):
+                return stooq_data
+            else:
+                print(f"⚠️ Stooq data validation failed for {symbol}")
+        
+        # Final fallback: Try Alpha Vantage free tier (if available)
+        av_data = self._try_alpha_vantage_free(symbol)
+        if av_data is not None and not av_data.empty:
+            if self._validate_market_data(av_data, symbol):
+                return av_data
             
         return None
+    
+    def _try_yahoo_direct_api(self, symbol):
+        """Try Yahoo Finance Direct API (most reliable)"""
+        try:
+            import requests
+            from datetime import datetime
+            
+            # Yahoo Finance Chart API
+            url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
+            
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+            
+            params = {
+                'range': '2y',
+                'interval': '1d',
+                'includePrePost': 'true',
+                'events': 'div%2Csplit'
+            }
+            
+            response = requests.get(url, headers=headers, params=params, timeout=15)
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                if ('chart' in data and 'result' in data['chart'] and 
+                    data['chart']['result'] and len(data['chart']['result']) > 0):
+                    
+                    result = data['chart']['result'][0]
+                    
+                    if ('timestamp' in result and 'indicators' in result and 
+                        'quote' in result['indicators'] and len(result['indicators']['quote']) > 0):
+                        
+                        timestamps = result['timestamp']
+                        quotes = result['indicators']['quote'][0]
+                        
+                        # Convert to DataFrame
+                        df_data = []
+                        for i, ts in enumerate(timestamps):
+                            try:
+                                df_data.append({
+                                    'Date': pd.to_datetime(ts, unit='s'),
+                                    'Open': quotes['open'][i],
+                                    'High': quotes['high'][i],
+                                    'Low': quotes['low'][i],
+                                    'Close': quotes['close'][i],
+                                    'Volume': quotes['volume'][i] if quotes['volume'][i] is not None else 0
+                                })
+                            except (IndexError, TypeError):
+                                continue
+                        
+                        if df_data:
+                            df = pd.DataFrame(df_data)
+                            df.set_index('Date', inplace=True)
+                            df.sort_index(inplace=True)
+                            
+                            # Remove any rows with all NaN values
+                            df = df.dropna(how='all')
+                            
+                            return df
+            
+            return None
+            
+        except Exception as e:
+            print(f"  ⚠️ Yahoo Direct API error for {symbol}: {str(e)[:100]}")
+            return None
+    
+    def _try_ticker_history(self, symbol):
+        """Try standard ticker.history method"""
+        import warnings, logging, io, contextlib
+        
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            yf_logger = logging.getLogger('yfinance')
+            original_level = yf_logger.level
+            yf_logger.setLevel(logging.CRITICAL)
+            
+            try:
+                ticker = yf.Ticker(symbol)
+                buf_out, buf_err = io.StringIO(), io.StringIO()
+                with contextlib.redirect_stdout(buf_out), contextlib.redirect_stderr(buf_err):
+                    return ticker.history(period="2y", interval="1d")
+            finally:
+                yf_logger.setLevel(original_level)
+    
+    def _try_yf_download(self, symbol):
+        """Try yf.download method"""
+        import warnings, io, contextlib
+        
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            buf_out, buf_err = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(buf_out), contextlib.redirect_stderr(buf_err):
+                return yf.download(symbol, period="2y", progress=False, show_errors=False)
+    
+    def _try_different_periods(self, symbol):
+        """Try different time periods"""
+        import warnings, logging, io, contextlib
+        
+        periods = ["1y", "6mo", "3mo", "1mo"]
+        
+        for period in periods:
+            try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    yf_logger = logging.getLogger('yfinance')
+                    original_level = yf_logger.level
+                    yf_logger.setLevel(logging.CRITICAL)
+                    
+                    try:
+                        ticker = yf.Ticker(symbol)
+                        buf_out, buf_err = io.StringIO(), io.StringIO()
+                        with contextlib.redirect_stdout(buf_out), contextlib.redirect_stderr(buf_err):
+                            hist = ticker.history(period=period, interval="1d")
+                        
+                        if hist is not None and not hist.empty and len(hist) > 20:
+                            return hist
+                    finally:
+                        yf_logger.setLevel(original_level)
+            except:
+                continue
+        
+        return None
+    
+    def _try_alpha_vantage_free(self, symbol):
+        """Try Alpha Vantage free tier as final fallback"""
+        try:
+            # Alpha Vantage free tier - 5 calls per minute, 500 per day
+            # This is a last resort fallback
+            import requests
+            from datetime import datetime, timedelta
+            
+            # Free API key (demo key, limited calls)
+            api_key = "demo"  # Replace with actual free key if needed
+            url = f"https://www.alphavantage.co/query"
+            
+            params = {
+                'function': 'TIME_SERIES_DAILY',
+                'symbol': symbol,
+                'apikey': api_key,
+                'outputsize': 'compact'
+            }
+            
+            response = requests.get(url, params=params, timeout=10)
+            data = response.json()
+            
+            if 'Time Series (Daily)' in data:
+                time_series = data['Time Series (Daily)']
+                
+                # Convert to DataFrame
+                df_data = []
+                for date_str, values in time_series.items():
+                    df_data.append({
+                        'Date': pd.to_datetime(date_str),
+                        'Open': float(values['1. open']),
+                        'High': float(values['2. high']),
+                        'Low': float(values['3. low']),
+                        'Close': float(values['4. close']),
+                        'Volume': int(values['5. volume'])
+                    })
+                
+                df = pd.DataFrame(df_data)
+                df.set_index('Date', inplace=True)
+                df.sort_index(inplace=True)
+                
+                return df
+                
+        except Exception:
+            pass
+        
+        return None
+    
+    def _validate_market_data(self, df, symbol):
+        """Validate that market data is real and reasonable"""
+        try:
+            if df is None or df.empty or len(df) < 20:  # Reduced from 50 to 20 for more flexibility
+                return False
+            
+            # Check for required columns
+            required_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
+            if not all(col in df.columns for col in required_cols):
+                return False
+            
+            # Check for reasonable price ranges (not synthetic patterns)
+            close_prices = df['Close'].dropna()
+            if len(close_prices) < 20:  # Reduced from 50 to 20
+                return False
+                
+            # Check for reasonable price values (not obviously synthetic)
+            min_price = close_prices.min()
+            max_price = close_prices.max()
+            
+            # Prices should be reasonable (between $0.01 and $10,000)
+            if min_price <= 0 or max_price > 10000 or min_price > max_price:
+                return False
+            
+            # Check for reasonable volume (should have some trading activity)
+            volumes = df['Volume'].dropna()
+            if len(volumes) < 20 or volumes.max() <= 0:  # Reduced from 50 to 20
+                return False
+            
+            # Check that OHLC relationships make sense
+            for idx in df.index[-10:]:  # Check last 10 days
+                row = df.loc[idx]
+                if pd.isna(row['High']) or pd.isna(row['Low']) or pd.isna(row['Open']) or pd.isna(row['Close']):
+                    continue
+                if not (row['Low'] <= row['Open'] <= row['High'] and 
+                       row['Low'] <= row['Close'] <= row['High']):
+                    return False
+            
+            return True
+            
+        except Exception:
+            return False
 
     def _generate_synthetic_data(self, symbol: str):
         """Generate synthetic data for testing when APIs are down"""
@@ -522,10 +761,14 @@ class AdvancedDataFetcher:
     def get_bulk_history(self, symbols, period="2y", interval="1d"):
         """Fetch OHLCV for many symbols at once with improved fallback handling"""
         out = {}
+        start_time = time.time()
+        
         try:
             if isinstance(symbols, str):
                 symbols = [symbols]
 
+            print(f"📡 Fetching data for {len(symbols)} symbols...")
+            
             # First try yfinance bulk download (may fail due to rate limiting)
             try:
                 import io, contextlib
@@ -570,9 +813,10 @@ class AdvancedDataFetcher:
                             local_out[sym] = None
                     return local_out
 
-                # Try smaller batches to avoid rate limiting
-                batch_size = min(50, len(symbols))  # Smaller batches
+                # Optimized batch processing
+                batch_size = min(100, len(symbols))  # Larger batches for efficiency
                 yfinance_success = False
+                successful_batches = 0
                 
                 for i in range(0, len(symbols), batch_size):
                     batch = symbols[i:i+batch_size]
@@ -585,16 +829,22 @@ class AdvancedDataFetcher:
                             parsed = parse_download_result(d2, batch)
                             out.update(parsed)
                             yfinance_success = True
+                            successful_batches += 1
+                            print(f"✅ Batch {successful_batches}: {len([v for v in parsed.values() if v is not None])}/{len(batch)} symbols")
                         else:
                             for sym in batch:
                                 out[sym] = None
-                    except Exception:
+                            print(f"❌ Batch failed: {len(batch)} symbols")
+                    except Exception as e:
                         for sym in batch:
                             out[sym] = None
+                        print(f"❌ Batch error: {str(e)[:50]}")
                 
                 # If yfinance worked for some symbols, return what we have
                 if yfinance_success:
                     valid_count = sum(1 for v in out.values() if v is not None and not v.empty)
+                    elapsed = time.time() - start_time
+                    print(f"🎯 Bulk fetch: {valid_count}/{len(symbols)} symbols in {elapsed:.1f}s ({valid_count/elapsed:.1f} symbols/sec)")
                     if valid_count > 0:
                         return out
                         
@@ -605,24 +855,24 @@ class AdvancedDataFetcher:
             print("Bulk yfinance failed, using individual fetch with synthetic fallback...")
             for symbol in symbols:
                 try:
-                    # Use our improved individual fetcher (includes synthetic fallback)
+                    # Use our improved individual fetcher (NO synthetic fallback)
                     hist = self._fetch_yfinance_with_fallback(symbol)
                     if hist is None or hist.empty:
-                        hist = self._generate_synthetic_data(symbol)
-                    out[symbol] = hist
+                        print(f"❌ No real data for {symbol} - skipping")
+                        out[symbol] = None
+                    else:
+                        out[symbol] = hist
                 except Exception:
                     out[symbol] = None
 
             return out
             
-        except Exception:
-            # Final fallback - generate synthetic data for all symbols
-            print("All bulk methods failed, generating synthetic data for all symbols...")
+        except Exception as e:
+            # CRITICAL: Never use synthetic data for real trading
+            print(f"❌ CRITICAL: All data fetching methods failed: {e}")
+            print("🚫 Synthetic data fallback DISABLED for trading safety")
             for symbol in symbols:
-                try:
-                    out[symbol] = self._generate_synthetic_data(symbol)
-                except Exception:
-                    out[symbol] = None
+                out[symbol] = None
             return out
 
     def get_comprehensive_stock_data(self, symbol, preloaded_hist: pd.DataFrame | None = None):
@@ -646,10 +896,9 @@ class AdvancedDataFetcher:
             }
             
             if hist is None or hist.empty:
-                # Generate synthetic data for testing when APIs are down
-                hist = self._generate_synthetic_data(symbol)
-                if hist is None or hist.empty:
-                    return None
+                # CRITICAL: Never use synthetic data for real trading analysis
+                print(f"❌ CRITICAL: No real data available for {symbol} - SKIPPING (synthetic data disabled for safety)")
+                return None
             
             # Add advanced technical indicators
             hist = self._add_advanced_technical_indicators(hist)

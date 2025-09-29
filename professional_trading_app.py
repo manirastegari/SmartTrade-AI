@@ -95,7 +95,9 @@ st.markdown("""
 @st.cache_resource
 def get_analyzer():
     # Use light data mode by default (rate-limit friendly). ML training can be toggled below.
-    return AdvancedTradingAnalyzer(enable_training=False, data_mode="light")
+    analyzer = AdvancedTradingAnalyzer(enable_training=False, data_mode="light")
+    st.success(f"🚀 Optimizer loaded: {analyzer.max_workers} workers, caching enabled")
+    return analyzer
 
 analyzer = get_analyzer()
 
