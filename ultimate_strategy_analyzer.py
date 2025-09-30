@@ -79,6 +79,9 @@ class UltimateStrategyAnalyzer:
         if progress_callback:
             progress_callback("✅ Ultimate Strategy Analysis Complete!", 100)
         
+        # Automatically export to Excel
+        self._auto_export_to_excel(final_recommendations)
+        
         return final_recommendations
     
     def _run_strategy_1(self) -> List[Dict]:
@@ -343,6 +346,7 @@ class UltimateStrategyAnalyzer:
     def _generate_consensus_recommendations(self) -> Dict:
         """
         Generate final consensus recommendations from all 4 strategies
+        ONLY includes BUY recommendations with positive expected returns
         
         Returns:
             dict: Recommendations organized by conviction tiers
@@ -357,25 +361,46 @@ class UltimateStrategyAnalyzer:
                 if not symbol:
                     continue
                 
+                # FILTER 1: Only include BUY recommendations
+                recommendation = result.get('recommendation', '')
+                if 'BUY' not in recommendation:
+                    continue
+                
+                # FILTER 2: Only include positive expected returns
+                prediction = result.get('prediction', 0)
+                if prediction <= 0:
+                    continue
+                
+                # FILTER 3: Minimum score threshold
+                overall_score = result.get('overall_score', 0)
+                if overall_score < 50:
+                    continue
+                
                 if symbol not in symbol_data:
                     symbol_data[symbol] = {
                         'symbol': symbol,
                         'company_name': result.get('company_name', ''),
                         'current_price': result.get('current_price', 0),
+                        'sector': result.get('sector', 'Unknown'),
+                        'market_cap': result.get('market_cap', 0),
                         'strategies': [],
                         'scores': [],
                         'confidences': [],
                         'recommendations': [],
                         'risk_levels': [],
-                        'upsides': []
+                        'upsides': [],
+                        'technical_scores': [],
+                        'fundamental_scores': []
                     }
                 
                 symbol_data[symbol]['strategies'].append(strategy_name)
-                symbol_data[symbol]['scores'].append(result.get('overall_score', 0))
+                symbol_data[symbol]['scores'].append(overall_score)
                 symbol_data[symbol]['confidences'].append(result.get('confidence', 0))
-                symbol_data[symbol]['recommendations'].append(result.get('recommendation', ''))
+                symbol_data[symbol]['recommendations'].append(recommendation)
                 symbol_data[symbol]['risk_levels'].append(result.get('risk_level', ''))
-                symbol_data[symbol]['upsides'].append(result.get('prediction', 0))
+                symbol_data[symbol]['upsides'].append(prediction)
+                symbol_data[symbol]['technical_scores'].append(result.get('technical_score', 0))
+                symbol_data[symbol]['fundamental_scores'].append(result.get('fundamental_score', 0))
         
         # Calculate consensus scores
         for symbol, data in symbol_data.items():
@@ -401,41 +426,64 @@ class UltimateStrategyAnalyzer:
             data['avg_upside'] = np.mean(data['upsides']) if data['upsides'] else 0
             data['strong_buy_count'] = sum(1 for r in data['recommendations'] if r == 'STRONG BUY')
         
-        # Categorize into conviction tiers
-        tier1_highest = []  # Consensus > 80, appears in 3+ strategies
-        tier2_high = []      # Consensus > 75, appears in 2+ strategies
-        tier3_moderate = []  # Score > 70 in any strategy
+        # Categorize into conviction tiers with STRICTER CRITERIA
+        tier1_highest = []  # Consensus > 85, appears in 3+ strategies, positive upside
+        tier2_high = []      # Consensus > 75, appears in 2+ strategies, strong buy
+        tier3_moderate = []  # Consensus > 65, good fundamentals
         
         for symbol, data in symbol_data.items():
-            # Tier 1: Highest Conviction
-            if (data['consensus_score'] > 80 and 
+            # Additional quality filters
+            avg_technical = np.mean(data['technical_scores']) if data['technical_scores'] else 0
+            avg_fundamental = np.mean(data['fundamental_scores']) if data['fundamental_scores'] else 0
+            
+            # Tier 1: HIGHEST CONVICTION (Institutional-Grade)
+            # Must appear in both conservative strategies (institutional + risk_managed)
+            # Plus at least one growth strategy
+            if (data['consensus_score'] > 85 and 
                 data['num_strategies'] >= 3 and
                 'institutional' in data['strategies'] and
-                'risk_managed' in data['strategies']):
+                'risk_managed' in data['strategies'] and
+                data['avg_upside'] > 0.10 and  # At least 10% expected return
+                data['avg_confidence'] > 0.70 and  # At least 70% confidence
+                avg_technical > 60 and
+                avg_fundamental > 60):
                 
                 data['conviction_tier'] = 'HIGHEST'
                 data['recommended_position'] = '4-5%'
                 data['stop_loss'] = -8
-                data['take_profit'] = 25
+                data['take_profit'] = int(data['avg_upside'] * 100 * 1.2)  # 20% above prediction
+                data['quality_score'] = (avg_technical + avg_fundamental) / 2
                 tier1_highest.append(data)
             
-            # Tier 2: High Conviction
+            # Tier 2: HIGH CONVICTION (Growth-Focused)
+            # Must have strong buy from at least one strategy
+            # Good technical and fundamental scores
             elif (data['consensus_score'] > 75 and 
                   data['num_strategies'] >= 2 and
-                  data['strong_buy_count'] >= 1):
+                  data['strong_buy_count'] >= 1 and
+                  data['avg_upside'] > 0.15 and  # At least 15% expected return
+                  data['avg_confidence'] > 0.65 and
+                  avg_technical > 55):
                 
                 data['conviction_tier'] = 'HIGH'
                 data['recommended_position'] = '2-3%'
                 data['stop_loss'] = -10
-                data['take_profit'] = 40
+                data['take_profit'] = int(data['avg_upside'] * 100 * 1.3)  # 30% above prediction
+                data['quality_score'] = (avg_technical + avg_fundamental) / 2
                 tier2_high.append(data)
             
-            # Tier 3: Moderate Conviction
-            elif max(data['scores']) > 70:
+            # Tier 3: MODERATE CONVICTION (Value Opportunities)
+            # Good scores with positive momentum
+            elif (data['consensus_score'] > 65 and
+                  max(data['scores']) > 70 and
+                  data['avg_upside'] > 0.12 and  # At least 12% expected return
+                  avg_fundamental > 50):
+                
                 data['conviction_tier'] = 'MODERATE'
                 data['recommended_position'] = '1-2%'
                 data['stop_loss'] = -12
-                data['take_profit'] = 60
+                data['take_profit'] = int(data['avg_upside'] * 100 * 1.5)  # 50% above prediction
+                data['quality_score'] = (avg_technical + avg_fundamental) / 2
                 tier3_moderate.append(data)
         
         # Sort each tier by consensus score
@@ -656,35 +704,68 @@ class UltimateStrategyAnalyzer:
         - **Total After 10 Years: $165,000 (TAX-FREE!)**
         """)
         
-        # Export option
+        # Export notification
         st.markdown("---")
-        st.markdown("### 📥 Export Results")
+        st.markdown("### 📥 Excel Export")
         
-        if st.button("📊 Export Ultimate Strategy Results to Excel"):
-            self._export_to_excel(recommendations)
-            st.success("✅ Results exported successfully!")
+        st.success("✅ Results automatically exported to `exports/` folder!")
+        st.info("📁 Check the `exports/` directory for your Excel file with timestamp.")
+        
+        if st.button("📊 Export Again (Manual)"):
+            filename = self._export_to_excel(recommendations)
+            if filename:
+                st.success(f"✅ Additional export created: {filename}")
+    
+    def _auto_export_to_excel(self, recommendations: Dict):
+        """Automatically export ultimate strategy results to Excel"""
+        
+        try:
+            from excel_export import export_analysis_to_excel
+            import os
+            
+            # Combine all tiers for export
+            all_recommendations = (
+                recommendations['tier1_highest_conviction'] +
+                recommendations['tier2_high_conviction'] +
+                recommendations['tier3_moderate_conviction']
+            )
+            
+            if not all_recommendations:
+                print("⚠️ No recommendations to export")
+                return None
+            
+            # Create exports directory if it doesn't exist
+            exports_dir = "exports"
+            if not os.path.exists(exports_dir):
+                os.makedirs(exports_dir)
+            
+            # Export with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = os.path.join(exports_dir, f"Ultimate_Strategy_Results_{timestamp}.xlsx")
+            
+            export_analysis_to_excel(
+                all_recommendations,
+                analysis_params={
+                    'type': 'Ultimate Strategy - 4-Strategy Consensus',
+                    'date': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    'total_analyzed': recommendations['summary']['total_analyzed'],
+                    'tier1_count': len(recommendations['tier1_highest_conviction']),
+                    'tier2_count': len(recommendations['tier2_high_conviction']),
+                    'tier3_count': len(recommendations['tier3_moderate_conviction'])
+                },
+                filename=filename
+            )
+            
+            print(f"\n✅ Results automatically exported to: {filename}")
+            return filename
+            
+        except Exception as e:
+            print(f"⚠️ Auto-export failed: {e}")
+            return None
     
     def _export_to_excel(self, recommendations: Dict):
-        """Export ultimate strategy results to Excel"""
-        
-        from excel_export import export_analysis_to_excel
-        
-        # Combine all tiers for export
-        all_recommendations = (
-            recommendations['tier1_highest_conviction'] +
-            recommendations['tier2_high_conviction'] +
-            recommendations['tier3_moderate_conviction']
-        )
-        
-        # Export
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"Ultimate_Strategy_Results_{timestamp}.xlsx"
-        
-        export_analysis_to_excel(
-            all_recommendations,
-            analysis_params={'type': 'Ultimate Strategy - 4-Strategy Consensus'},
-            filename=filename
-        )
+        """Export ultimate strategy results to Excel (manual export)"""
+        return self._auto_export_to_excel(recommendations)
 
 if __name__ == "__main__":
     print("Ultimate Strategy Analyzer - Automated 4-Strategy Consensus System")

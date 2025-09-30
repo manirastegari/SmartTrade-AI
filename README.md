@@ -15,13 +15,14 @@
 **Professional-grade AI trading system with institutional accuracy and Canadian TFSA optimization!**
 
 ### **🚀 Revolutionary Enhancements**
+- **🏆 6 Analysis Types**: Ultimate Strategy (automated consensus) + 5 professional analysis modes
 - **📊 716-Stock Universe**: 5-2000%+ profit potential across all market caps
 - **🇨🇦 TFSA Optimized**: 100% Canadian tax-free trading compatible
 - **🎯 Questrade Ready**: All stocks available on Canada's leading platform
 - **⚡ 5x Performance**: Optimized ML models, 15-30 min analysis (was 3-4 hours)
 - **🛡️ Real Data Only**: Zero synthetic data, institutional-grade accuracy
-- **📈 Smart Recommendations**: Realistic thresholds, 17%+ success rate
-- **💾 Excel Export**: Professional reporting and portfolio management
+- **📈 Smart Recommendations**: Realistic thresholds, only positive returns
+- **💾 Auto Excel Export**: Automatic professional reporting after each analysis
 - **💎 Hidden Gem Coverage**: 100% capture of high-potential categories
 - **🌐 Macro + Breadth Overlay (New)**: One-shot macro context and internal breadth integrated directly into scoring and UI
 - **🧭 Market Health Panel (New)**: Overlay score, Advancers %, % Above 50/200 SMA, VIX and Yield Curve in the Professional Terminal
