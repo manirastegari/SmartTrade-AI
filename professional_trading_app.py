@@ -492,6 +492,9 @@ if st.sidebar.button("🚀 Run Professional Analysis", type="primary"):
             
             st.success("✅ Ultimate Strategy Analysis Complete!")
             st.balloons()
+            
+            # Stop execution here - Ultimate Strategy has its own display
+            st.stop()
         
     else:
         # Regular single-strategy analysis

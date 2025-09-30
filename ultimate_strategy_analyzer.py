@@ -573,29 +573,25 @@ class UltimateStrategyAnalyzer:
         tier1 = recommendations['tier1_highest_conviction']
         
         if tier1:
+            # Create DataFrame for clean display
+            tier1_data = []
             for i, stock in enumerate(tier1, 1):
-                with st.expander(f"#{i} - {stock['symbol']} - {stock['company_name']} - Consensus: {stock['consensus_score']:.1f}"):
-                    
-                    col1, col2, col3, col4 = st.columns(4)
-                    
-                    with col1:
-                        st.metric("Current Price", f"${stock['current_price']:.2f}")
-                        st.caption(f"Position: {stock['recommended_position']}")
-                    
-                    with col2:
-                        st.metric("Consensus Score", f"{stock['consensus_score']:.1f}")
-                        st.caption(f"Strategies: {stock['num_strategies']}/4")
-                    
-                    with col3:
-                        st.metric("Avg Confidence", f"{stock['avg_confidence']*100:.1f}%")
-                        st.caption(f"Expected Upside: {stock['avg_upside']*100:.1f}%")
-                    
-                    with col4:
-                        st.metric("Stop Loss", f"{stock['stop_loss']}%")
-                        st.metric("Take Profit", f"+{stock['take_profit']}%")
-                    
-                    st.markdown(f"**Appears in:** {', '.join(stock['strategies'])}")
-                    st.markdown(f"**Strong Buy Count:** {stock['strong_buy_count']}/{stock['num_strategies']}")
+                tier1_data.append({
+                    '#': i,
+                    'Symbol': stock['symbol'],
+                    'Company': stock['company_name'][:30] + '...' if len(stock['company_name']) > 30 else stock['company_name'],
+                    'Price': f"${stock['current_price']:.2f}",
+                    'Score': f"{stock['consensus_score']:.1f}",
+                    'Confidence': f"{stock['avg_confidence']*100:.0f}%",
+                    'Upside': f"{stock['avg_upside']*100:.1f}%",
+                    'Position': stock['recommended_position'],
+                    'Stop': f"{stock['stop_loss']}%",
+                    'Target': f"+{stock['take_profit']}%",
+                    'Strategies': f"{stock['num_strategies']}/4"
+                })
+            
+            df1 = pd.DataFrame(tier1_data)
+            st.dataframe(df1, use_container_width=True, hide_index=True)
         else:
             st.info("No stocks met Tier 1 criteria")
         
@@ -607,28 +603,25 @@ class UltimateStrategyAnalyzer:
         tier2 = recommendations['tier2_high_conviction']
         
         if tier2:
+            # Create DataFrame for clean display
+            tier2_data = []
             for i, stock in enumerate(tier2, 1):
-                with st.expander(f"#{i} - {stock['symbol']} - {stock['company_name']} - Consensus: {stock['consensus_score']:.1f}"):
-                    
-                    col1, col2, col3, col4 = st.columns(4)
-                    
-                    with col1:
-                        st.metric("Current Price", f"${stock['current_price']:.2f}")
-                        st.caption(f"Position: {stock['recommended_position']}")
-                    
-                    with col2:
-                        st.metric("Consensus Score", f"{stock['consensus_score']:.1f}")
-                        st.caption(f"Strategies: {stock['num_strategies']}/4")
-                    
-                    with col3:
-                        st.metric("Avg Confidence", f"{stock['avg_confidence']*100:.1f}%")
-                        st.caption(f"Expected Upside: {stock['avg_upside']*100:.1f}%")
-                    
-                    with col4:
-                        st.metric("Stop Loss", f"{stock['stop_loss']}%")
-                        st.metric("Take Profit", f"+{stock['take_profit']}%")
-                    
-                    st.markdown(f"**Appears in:** {', '.join(stock['strategies'])}")
+                tier2_data.append({
+                    '#': i,
+                    'Symbol': stock['symbol'],
+                    'Company': stock['company_name'][:30] + '...' if len(stock['company_name']) > 30 else stock['company_name'],
+                    'Price': f"${stock['current_price']:.2f}",
+                    'Score': f"{stock['consensus_score']:.1f}",
+                    'Confidence': f"{stock['avg_confidence']*100:.0f}%",
+                    'Upside': f"{stock['avg_upside']*100:.1f}%",
+                    'Position': stock['recommended_position'],
+                    'Stop': f"{stock['stop_loss']}%",
+                    'Target': f"+{stock['take_profit']}%",
+                    'Strategies': f"{stock['num_strategies']}/4"
+                })
+            
+            df2 = pd.DataFrame(tier2_data)
+            st.dataframe(df2, use_container_width=True, hide_index=True)
         else:
             st.info("No stocks met Tier 2 criteria")
         
@@ -640,28 +633,25 @@ class UltimateStrategyAnalyzer:
         tier3 = recommendations['tier3_moderate_conviction']
         
         if tier3:
+            # Create DataFrame for clean display
+            tier3_data = []
             for i, stock in enumerate(tier3, 1):
-                with st.expander(f"#{i} - {stock['symbol']} - {stock['company_name']} - Consensus: {stock['consensus_score']:.1f}"):
-                    
-                    col1, col2, col3, col4 = st.columns(4)
-                    
-                    with col1:
-                        st.metric("Current Price", f"${stock['current_price']:.2f}")
-                        st.caption(f"Position: {stock['recommended_position']}")
-                    
-                    with col2:
-                        st.metric("Consensus Score", f"{stock['consensus_score']:.1f}")
-                        st.caption(f"Strategies: {stock['num_strategies']}/4")
-                    
-                    with col3:
-                        st.metric("Avg Confidence", f"{stock['avg_confidence']*100:.1f}%")
-                        st.caption(f"Expected Upside: {stock['avg_upside']*100:.1f}%")
-                    
-                    with col4:
-                        st.metric("Stop Loss", f"{stock['stop_loss']}%")
-                        st.metric("Take Profit", f"+{stock['take_profit']}%")
-                    
-                    st.markdown(f"**Appears in:** {', '.join(stock['strategies'])}")
+                tier3_data.append({
+                    '#': i,
+                    'Symbol': stock['symbol'],
+                    'Company': stock['company_name'][:30] + '...' if len(stock['company_name']) > 30 else stock['company_name'],
+                    'Price': f"${stock['current_price']:.2f}",
+                    'Score': f"{stock['consensus_score']:.1f}",
+                    'Confidence': f"{stock['avg_confidence']*100:.0f}%",
+                    'Upside': f"{stock['avg_upside']*100:.1f}%",
+                    'Position': stock['recommended_position'],
+                    'Stop': f"{stock['stop_loss']}%",
+                    'Target': f"+{stock['take_profit']}%",
+                    'Strategies': f"{stock['num_strategies']}/4"
+                })
+            
+            df3 = pd.DataFrame(tier3_data)
+            st.dataframe(df3, use_container_width=True, hide_index=True)
         else:
             st.info("No stocks met Tier 3 criteria")
         
