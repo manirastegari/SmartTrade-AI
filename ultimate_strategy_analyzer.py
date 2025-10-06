@@ -1158,6 +1158,19 @@ class UltimateStrategyAnalyzer:
         
         tier_data = []
         for i, stock in enumerate(tier_stocks, 1):
+            # Format market cap nicely
+            market_cap = stock.get('market_cap', 0)
+            if market_cap >= 1000000000000:  # Trillion
+                market_cap_str = f"${market_cap/1000000000000:.2f}T"
+            elif market_cap >= 1000000000:  # Billion
+                market_cap_str = f"${market_cap/1000000000:.2f}B"
+            elif market_cap >= 1000000:  # Million
+                market_cap_str = f"${market_cap/1000000:.2f}M"
+            elif market_cap > 0:
+                market_cap_str = f"${market_cap:,.0f}"
+            else:
+                market_cap_str = "N/A"
+            
             tier_data.append({
                 'Rank': i,
                 'Symbol': stock['symbol'],
@@ -1173,7 +1186,7 @@ class UltimateStrategyAnalyzer:
                 'Strategies Count': f"{stock['num_strategies']}/4",
                 'Strategies': ', '.join(stock['strategies']),
                 'Sector': stock.get('sector', 'Unknown'),
-                'Market Cap': stock.get('market_cap', 'N/A')
+                'Market Cap': market_cap_str
             })
         
         df_tier = pd.DataFrame(tier_data)

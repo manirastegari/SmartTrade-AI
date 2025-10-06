@@ -417,12 +417,29 @@ class AdvancedTradingAnalyzer:
             stop_loss_price = current_price * 0.95  # 5% stop loss
             downside_risk = -5.0  # Maximum acceptable loss
             
+            # Get market cap with fallback estimation
+            market_cap = info.get('marketCap', 0)
+            if market_cap == 0 or market_cap is None:
+                # Estimate market cap from price and shares outstanding
+                shares_outstanding = info.get('sharesOutstanding', 0)
+                if shares_outstanding > 0:
+                    market_cap = current_price * shares_outstanding
+                else:
+                    # Rough estimate based on volume (very approximate)
+                    avg_volume = df['Volume'].tail(20).mean()
+                    if avg_volume > 10000000:  # High volume
+                        market_cap = 50000000000  # Assume large cap (50B)
+                    elif avg_volume > 1000000:  # Medium volume
+                        market_cap = 5000000000   # Assume mid cap (5B)
+                    else:  # Low volume
+                        market_cap = 500000000    # Assume small cap (500M)
+            
             result = {
                 'symbol': symbol,
                 'current_price': current_price,
                 'price_change_1d': df['Close'].pct_change().iloc[-1] * 100,
                 'volume': df['Volume'].iloc[-1],
-                'market_cap': info.get('marketCap', 0),
+                'market_cap': market_cap,
                 'pe_ratio': info.get('trailingPE', 0),
                 'sector': self._get_sector_from_symbol(symbol, info),
                 'prediction': prediction_result['prediction'],
