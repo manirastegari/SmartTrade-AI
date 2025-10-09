@@ -7,3 +7,5 @@ plotly
 matplotlib
 scikit-learn
 xgboost
+pytest
+pytest-cov

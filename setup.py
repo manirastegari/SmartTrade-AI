@@ -65,7 +65,6 @@ setup(
     entry_points={
         "console_scripts": [
             "smarttrade=simple_trading_analyzer:main",
-            "smarttrade-enhanced=enhanced_trading_app:main",
         ],
     },
     keywords=[

@@ -514,7 +514,12 @@ if st.sidebar.button("🚀 Run Professional Analysis", type="primary"):
             
             # Display results
             ultimate_analyzer.display_ultimate_strategy_results(final_recommendations)
-            
+            # Fix: Use total_analyzed from recommendations summary, not selected_stocks
+            total_analyzed = final_recommendations['summary']['total_analyzed']
+            total_valid = final_recommendations['summary']['tier1_count'] + final_recommendations['summary']['tier2_count'] + final_recommendations['summary']['tier3_count']
+            st.info(f"✅ Data reliability: {total_valid}/{total_analyzed} stocks analyzed with real data.")
+            if total_valid < total_analyzed:
+                st.warning(f"⚠️ {total_analyzed-total_valid} stocks skipped due to missing or unreliable data.")
             st.success("✅ Ultimate Strategy Analysis Complete!")
             st.balloons()
             
@@ -577,40 +582,35 @@ if st.sidebar.button("🚀 Run Professional Analysis", type="primary"):
             
             # Scan for catalysts with progress tracking
             all_catalyst_results = []
-            
-            # Process in batches to avoid overwhelming the system
             for batch_num in range(0, len(all_symbols), batch_size):
                 batch_symbols = all_symbols[batch_num:batch_num + batch_size]
                 batch_progress = (batch_num + batch_size) / len(all_symbols)
-                
                 status_text.text(f"🔍 Processing batch {batch_num//batch_size + 1}: {len(batch_symbols)} stocks...")
                 progress_bar.progress(min(batch_progress, 1.0))
-                
                 try:
                     batch_results = catalyst_detector.scan_for_catalysts(batch_symbols, max_workers=8)
+                    # Filter out stocks with missing or unreliable data
+                    batch_results = [r for r in batch_results if not r.get('error')]
                     all_catalyst_results.extend(batch_results)
-                    
-                    # Quiet progress update (only for significant finds)
-                    if len(batch_results) > 5:  # Only show if we found notable opportunities
+                    if len(batch_results) > 5:
                         st.success(f"🎯 Batch {batch_num//batch_size + 1}: Found {len(batch_results)} strong opportunities")
-                    
                 except Exception as e:
-                    # Only show warnings for significant issues
                     if "rate limit" in str(e).lower() or "connection" in str(e).lower():
                         st.warning(f"⚠️ Batch {batch_num//batch_size + 1}: {str(e)[:50]}...")
                     continue
-            
-            catalyst_results = all_catalyst_results
-            
-            progress_bar.empty()
-            status_text.empty()
+            # Reliability summary
+            total_analyzed = len(all_symbols)
+            total_valid = len(all_catalyst_results)
+            st.info(f"✅ Data reliability: {total_valid}/{total_analyzed} stocks analyzed with real data.")
+            if total_valid < total_analyzed:
+                st.warning(f"⚠️ {total_analyzed-total_valid} stocks skipped due to missing or unreliable data.")
         
-        if catalyst_results:
+        if all_catalyst_results:
             # Run multi-layered analysis on top catalyst results
             st.markdown("## 🔄 RUNNING MULTI-LAYERED ANALYSIS ON TOP CATALYSTS...")
             
             # Get top 20 catalyst opportunities for additional analysis
-            top_catalyst_symbols = [r['symbol'] for r in sorted(catalyst_results, key=lambda x: x.get('catalyst_score', 0), reverse=True)[:20]]
+            top_catalyst_symbols = [r['symbol'] for r in sorted(all_catalyst_results, key=lambda x: x.get('catalyst_score', 0), reverse=True)[:20]]
             
             # Run Advanced Analysis on top catalysts
             st.info("🧠 Running Advanced Technical & Fundamental Analysis on top catalyst opportunities...")
@@ -663,7 +663,7 @@ if st.sidebar.button("🚀 Run Professional Analysis", type="primary"):
                     st.warning("⚠️ No advanced analysis available for Ultimate Strategy insights")
                     # Create placeholder insights based on catalyst data only
                     for analysis_type in ["Hedge Fund Style", "Institutional Grade", "Quant Research"]:
-                        ranked_catalysts = sorted(catalyst_results[:10], key=lambda x: x.get('catalyst_score', 0), reverse=True)
+                        ranked_catalysts = sorted(all_catalyst_results[:10], key=lambda x: x.get('catalyst_score', 0), reverse=True)
                         ultimate_insights[analysis_type] = [
                             {
                                 'symbol': r['symbol'], 
@@ -679,7 +679,7 @@ if st.sidebar.button("🚀 Run Professional Analysis", type="primary"):
             
             # Combine and enhance catalyst results with additional analysis
             enhanced_catalyst_results = []
-            for catalyst_result in catalyst_results:
+            for catalyst_result in all_catalyst_results:
                 symbol = catalyst_result['symbol']
                 enhanced_result = catalyst_result.copy()
                 
@@ -721,7 +721,7 @@ if st.sidebar.button("🚀 Run Professional Analysis", type="primary"):
                 detailed_results = {
                     'timestamp': timestamp,
                     'total_stocks_analyzed': len(all_symbols),
-                    'catalyst_opportunities_found': len(catalyst_results),
+                    'catalyst_opportunities_found': len(all_catalyst_results),
                     'top_advanced_analysis_count': len(advanced_results),
                     'ultimate_strategy_insights': len(ultimate_insights),
                     'catalyst_results': enhanced_catalyst_results,
@@ -774,7 +774,7 @@ if st.sidebar.button("🚀 Run Professional Analysis", type="primary"):
             
             # Display Enhanced Catalyst Hunter Results
             st.markdown("## 🔥 ENHANCED EXPLOSIVE OPPORTUNITIES (Multi-Layered Analysis)")
-            st.markdown(f"### 🎯 Analyzed {len(all_symbols)} stocks | Found {len(catalyst_results)} opportunities | Enhanced {len(enhanced_catalyst_results)} with multi-layer analysis")
+            st.markdown(f"### 🎯 Analyzed {len(all_symbols)} stocks | Found {len(all_catalyst_results)} opportunities | Enhanced {len(enhanced_catalyst_results)} with multi-layer analysis")
             
             # Top catalyst opportunities (using enhanced results)
             top_catalysts = enhanced_catalyst_results[:10]
@@ -783,7 +783,7 @@ if st.sidebar.button("🚀 Run Professional Analysis", type="primary"):
             col1, col2, col3, col4 = st.columns(4)
             
             with col1:
-                explosive_count = len([r for r in catalyst_results if r.get('explosive_potential', False)])
+                explosive_count = len([r for r in all_catalyst_results if r.get('explosive_potential', False)])
                 st.markdown(f"""
                 <div class="metric-card">
                     <h4>🚀 Explosive Moves</h4>
@@ -792,7 +792,7 @@ if st.sidebar.button("🚀 Run Professional Analysis", type="primary"):
                 """, unsafe_allow_html=True)
             
             with col2:
-                strong_buy_count = len([r for r in catalyst_results if r.get('recommendation') == 'STRONG BUY'])
+                strong_buy_count = len([r for r in all_catalyst_results if r.get('recommendation') == 'STRONG BUY'])
                 st.markdown(f"""
                 <div class="metric-card">
                     <h4>💎 Strong Buys</h4>
@@ -801,7 +801,7 @@ if st.sidebar.button("🚀 Run Professional Analysis", type="primary"):
                 """, unsafe_allow_html=True)
             
             with col3:
-                avg_catalyst_score = np.mean([r.get('catalyst_score', 0) for r in catalyst_results])
+                avg_catalyst_score = np.mean([r.get('catalyst_score', 0) for r in all_catalyst_results])
                 st.markdown(f"""
                 <div class="metric-card">
                     <h4>⚡ Avg Catalyst Score</h4>
@@ -810,7 +810,7 @@ if st.sidebar.button("🚀 Run Professional Analysis", type="primary"):
                 """, unsafe_allow_html=True)
             
             with col4:
-                news_catalysts = len([r for r in catalyst_results if r.get('catalyst_type')])
+                news_catalysts = len([r for r in all_catalyst_results if r.get('catalyst_type')])
                 st.markdown(f"""
                 <div class="metric-card">
                     <h4>📰 News Catalysts</h4>
@@ -923,7 +923,7 @@ if st.sidebar.button("🚀 Run Professional Analysis", type="primary"):
             # Breakout Candidates
             st.markdown("### 📈 TECHNICAL BREAKOUT CANDIDATES")
             
-            breakout_candidates = catalyst_detector.get_breakout_candidates([r['symbol'] for r in catalyst_results])
+            breakout_candidates = catalyst_detector.get_breakout_candidates([r['symbol'] for r in all_catalyst_results])
             
             if breakout_candidates:
                 for candidate in breakout_candidates[:5]:
@@ -1078,8 +1078,8 @@ if st.sidebar.button("🚀 Run Professional Analysis", type="primary"):
                          delta="Maximum coverage achieved")
             
             with col2:
-                st.metric("🎯 Catalyst Opportunities", len(catalyst_results), 
-                         delta=f"{len([r for r in catalyst_results if r.get('catalyst_score', 0) > 70])} Strong Buy")
+                st.metric("🎯 Catalyst Opportunities", len(all_catalyst_results), 
+                         delta=f"{len([r for r in all_catalyst_results if r.get('catalyst_score', 0) > 70])} Strong Buy")
             
             with col3:
                 st.metric("🧠 Advanced Analysis", len(advanced_results), 

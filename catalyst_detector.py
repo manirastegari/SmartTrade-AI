@@ -31,6 +31,39 @@ from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager
 
+# Add Finnhub API (free tier)
+FINNHUB_API_KEY = os.getenv('FINNHUB_API_KEY')
+FINNHUB_BASE = 'https://finnhub.io/api/v1'
+
+def fetch_finnhub_price_volume(symbol):
+    if not FINNHUB_API_KEY:
+        return None
+    try:
+        url = f"{FINNHUB_BASE}/quote?symbol={symbol}&token={FINNHUB_API_KEY}"
+        resp = requests.get(url, timeout=5)
+        if resp.status_code == 200:
+            data = resp.json()
+            return {
+                'current_price': data.get('c'),
+                'previous_close': data.get('pc'),
+                'volume': data.get('v'),
+            }
+    except Exception:
+        pass
+    return None
+
+def fetch_finnhub_news(symbol):
+    if not FINNHUB_API_KEY:
+        return []
+    try:
+        url = f"{FINNHUB_BASE}/company-news?symbol={symbol}&from={datetime.now().date()}&to={datetime.now().date()}&token={FINNHUB_API_KEY}"
+        resp = requests.get(url, timeout=5)
+        if resp.status_code == 200:
+            return resp.json()
+    except Exception:
+        pass
+    return []
+
 @contextmanager
 def suppress_stdout_stderr():
     """Safely suppress stdout and stderr to reduce noise"""
@@ -217,9 +250,35 @@ class CatalystDetector:
                 except:
                     pass
             
-            # Final fallback: generate synthetic realistic data for testing
+            # Final fallback: try Finnhub if yfinance fails
             if hist is None or len(hist) < 5:
-                return self._generate_synthetic_momentum_data(symbol)
+                finnhub_data = fetch_finnhub_price_volume(symbol)
+                if finnhub_data and finnhub_data['current_price']:
+                    current_price = finnhub_data['current_price']
+                    previous_close = finnhub_data['previous_close']
+                    volume = finnhub_data['volume']
+                    price_change_1d = ((current_price - previous_close) / previous_close) * 100 if previous_close else 0
+                    # Only basic metrics if no full history
+                    return {
+                        'symbol': symbol,
+                        'current_price': current_price,
+                        'price_change_1d': price_change_1d,
+                        'price_change_5d': 0,
+                        'volume_spike': volume,
+                        'current_volume': volume,
+                        'avg_volume_20d': volume,
+                        'volatility_20d': 0,
+                        'breakout_high': False,
+                        'breakdown_low': False,
+                        'momentum_score': price_change_1d,
+                        'catalyst_likely': price_change_1d > 10,
+                        'explosive_move': price_change_1d > 10,
+                        'source': 'finnhub'
+                    }
+            
+            # Final fallback: skip analysis if no real data
+            if hist is None or len(hist) < 5:
+                return {'error': 'No reliable price/volume data available for this symbol. Skipping analysis.'}
             
             # Use the most recent/current price we obtained
             if current_price is None:
@@ -315,8 +374,41 @@ class CatalystDetector:
                 news = ticker.news
             except:
                 # Fallback to synthetic news simulation for testing
-                news = self._generate_synthetic_news(symbol)
+                news = []
             
+            # Fallback: try Finnhub news if yfinance fails
+            if not news:
+                finnhub_news = fetch_finnhub_news(symbol)
+                if finnhub_news:
+                    for article in finnhub_news[:limit]:
+                        title = article.get('headline', '')
+                        summary = article.get('summary', '')
+                        text = f"{title} {summary}".lower()
+                        sentiment_score = 0
+                        if VADER_AVAILABLE:
+                            sentiment = self.sentiment_analyzer.polarity_scores(text)
+                            sentiment_score = sentiment['compound']
+                        news_data['articles'].append({
+                            'title': title,
+                            'summary': summary,
+                            'sentiment': sentiment_score,
+                            'catalyst_type': self._detect_catalyst_type(text),
+                            'url': article.get('url', '')
+                        })
+                    if news_data['articles']:
+                        news_data['sentiment_score'] = sum(a['sentiment'] for a in news_data['articles']) / len(news_data['articles'])
+            
+            # Fallback: skip analysis if no real news data
+            if not news and not news_data['articles']:
+                return {
+                    'articles': [],
+                    'sentiment_score': 0,
+                    'catalyst_detected': False,
+                    'catalyst_type': None,
+                    'confidence': 0,
+                    'error': 'No reliable news data available for this symbol. Skipping analysis.'
+                }
+
             if news:
                 articles_processed = 0
                 total_sentiment = 0
@@ -474,37 +566,38 @@ class CatalystDetector:
         """
         results = []
         
+        # Use threading for parallel analysis
+        # Optimize: Increase max_workers for speed, early skip unreliable stocks, cache company names
+        max_workers = min(max_workers, 32)  # Cap for system stability
+        company_name_cache = {}
         def analyze_symbol(symbol):
             try:
+                # Early skip: check cache for company name
+                if symbol in company_name_cache:
+                    company_name = company_name_cache[symbol]
+                else:
+                    company_name = self.get_company_name(symbol)
+                    company_name_cache[symbol] = company_name
                 # Get momentum analysis
                 momentum = self.detect_explosive_momentum(symbol)
                 if 'error' in momentum:
                     return None
-                
                 # Get news sentiment
                 news = self.get_news_sentiment(symbol)
-                
                 # Get earnings data
                 earnings = self.detect_earnings_surprise(symbol)
-                
                 # Calculate composite catalyst score
                 catalyst_score = 0
-                
                 # Momentum contribution (40%)
                 catalyst_score += momentum.get('momentum_score', 0) * 0.4
-                
                 # News sentiment contribution (35%)
                 if news.get('catalyst_detected'):
                     catalyst_score += news.get('confidence', 0) * 0.35
                 elif abs(news.get('sentiment_score', 0)) > 0.5:
                     catalyst_score += abs(news.get('sentiment_score', 0)) * 20 * 0.35
-                
                 # Earnings surprise contribution (25%)
                 catalyst_score += earnings.get('surprise_probability', 0) * 0.25
-                
                 # Get company name for display
-                company_name = self.get_company_name(symbol)
-                
                 return {
                     'symbol': symbol,
                     'company_name': company_name,
@@ -516,20 +609,15 @@ class CatalystDetector:
                     'catalyst_type': news.get('catalyst_type'),
                     'recommendation': 'STRONG BUY' if catalyst_score > 70 else 'BUY' if catalyst_score > 50 else 'WATCH'
                 }
-                
             except Exception as e:
-                # Suppress noisy error messages for cleaner logs
                 if "No timezone found" not in str(e) and "No data found" not in str(e):
                     print(f"Error analyzing {symbol}: {e}")
                 return None
-        
-        # Use threading for parallel analysis
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_symbol = {executor.submit(analyze_symbol, symbol): symbol for symbol in symbols}
-            
             for future in as_completed(future_to_symbol):
                 result = future.result()
-                if result and result.get('catalyst_score', 0) > 30:  # Only include meaningful results
+                if result and result.get('catalyst_score', 0) > 30:
                     results.append(result)
         
         # Sort by catalyst score
@@ -640,178 +728,9 @@ class CatalystDetector:
             return {'error': f'Error detecting unusual activity for {symbol}: {str(e)}'}
     
     def _generate_synthetic_momentum_data(self, symbol: str) -> dict:
-        """
-        Generate realistic synthetic momentum data for testing when APIs fail
-        This creates plausible market scenarios for demonstration purposes
-        """
-        import random
-        
-        # Base realistic price ranges for different symbol types
-        price_ranges = {
-            'AMD': (140, 180), 'NVDA': (800, 1200), 'TSLA': (200, 300), 'AAPL': (170, 200),
-            'MSFT': (400, 450), 'META': (450, 550), 'GOOGL': (140, 170), 'PLTR': (15, 25),
-            'CRWD': (200, 300), 'SNOW': (150, 200), 'JPM': (140, 170), 'BAC': (30, 40),
-            'KO': (55, 65), 'PG': (150, 170)
-        }
-        
-        # Get price range or use default
-        min_price, max_price = price_ranges.get(symbol, (50, 100))
-        
-        # Generate realistic data with some having catalyst-like patterns
-        current_price = random.uniform(min_price, max_price)
-        
-        # Create different momentum scenarios
-        scenarios = ['explosive', 'moderate_up', 'moderate_down', 'sideways', 'breakout']
-        scenario = random.choice(scenarios)
-        
-        if scenario == 'explosive':
-            # Simulate explosive move like RGC or AMD on news
-            price_change_1d = random.uniform(15, 35)  # 15-35% spike
-            price_change_5d = price_change_1d + random.uniform(0, 10)
-            volume_spike = random.uniform(5, 15)  # 5-15x volume
-            momentum_score = random.uniform(70, 95)
-            explosive_move = True
-            catalyst_likely = True
-            
-        elif scenario == 'breakout':
-            # Technical breakout pattern
-            price_change_1d = random.uniform(5, 12)
-            price_change_5d = random.uniform(8, 20)
-            volume_spike = random.uniform(3, 7)
-            momentum_score = random.uniform(50, 75)
-            explosive_move = price_change_1d > 10
-            catalyst_likely = True
-            
-        elif scenario == 'moderate_up':
-            # Normal upward movement
-            price_change_1d = random.uniform(1, 6)
-            price_change_5d = random.uniform(2, 10)
-            volume_spike = random.uniform(1.2, 2.5)
-            momentum_score = random.uniform(30, 55)
-            explosive_move = False
-            catalyst_likely = False
-            
-        elif scenario == 'moderate_down':
-            # Downward movement
-            price_change_1d = random.uniform(-8, -1)
-            price_change_5d = random.uniform(-12, -2)
-            volume_spike = random.uniform(1.1, 3)
-            momentum_score = random.uniform(25, 45)
-            explosive_move = False
-            catalyst_likely = False
-            
-        else:  # sideways
-            # Sideways movement
-            price_change_1d = random.uniform(-2, 2)
-            price_change_5d = random.uniform(-3, 3)
-            volume_spike = random.uniform(0.8, 1.5)
-            momentum_score = random.uniform(15, 35)
-            explosive_move = False
-            catalyst_likely = False
-        
-        return {
-            'symbol': symbol,
-            'current_price': current_price,
-            'price_change_1d': price_change_1d,
-            'price_change_5d': price_change_5d,
-            'volume_spike': volume_spike,
-            'current_volume': int(random.uniform(1000000, 50000000)),
-            'avg_volume_20d': int(random.uniform(500000, 10000000)),
-            'volatility_20d': random.uniform(0.3, 0.8),
-            'breakout_high': scenario in ['explosive', 'breakout'] and price_change_1d > 0,
-            'breakdown_low': False,
-            'momentum_score': momentum_score,
-            'catalyst_likely': catalyst_likely,
-            'explosive_move': explosive_move,
-            'synthetic_data': True  # Flag to indicate this is synthetic
-        }
+        # REMOVED: Synthetic data generation for production reliability
+        return {'error': 'No reliable data available for this symbol. Skipping analysis.'}
 
     def _generate_synthetic_news(self, symbol: str) -> list:
-        """
-        Generate synthetic news data for testing when news APIs fail
-        Creates realistic news scenarios for different catalyst types
-        """
-        import random
-        from datetime import datetime, timedelta
-        
-        # Realistic news templates for different catalyst types
-        news_templates = {
-            'partnership': [
-                f"{symbol} announces strategic partnership with major tech company",
-                f"{symbol} signs multi-billion dollar collaboration deal",
-                f"{symbol} forms joint venture for new technology development",
-                f"{symbol} partners with industry leader for market expansion"
-            ],
-            'ai_tech': [
-                f"{symbol} unveils breakthrough AI technology platform",
-                f"{symbol} announces collaboration with OpenAI for next-gen solutions",
-                f"{symbol} launches advanced machine learning capabilities",
-                f"{symbol} integrates cutting-edge AI into core products"
-            ],
-            'earnings': [
-                f"{symbol} beats earnings expectations by wide margin",
-                f"{symbol} reports record quarterly revenue growth",
-                f"{symbol} raises full-year guidance following strong results",
-                f"{symbol} announces better-than-expected profit margins"
-            ],
-            'product': [
-                f"{symbol} launches revolutionary new product line",
-                f"{symbol} receives regulatory approval for innovative solution",
-                f"{symbol} unveils game-changing technology breakthrough",
-                f"{symbol} announces major product upgrade and expansion"
-            ],
-            'contract': [
-                f"{symbol} wins massive government contract worth billions",
-                f"{symbol} selected as exclusive supplier for major corporation",
-                f"{symbol} awarded multi-year enterprise deal",
-                f"{symbol} secures largest contract in company history"
-            ],
-            'upgrade': [
-                f"Analysts upgrade {symbol} to strong buy with higher price target",
-                f"Major investment bank raises {symbol} target price significantly",
-                f"Multiple analysts turn bullish on {symbol} outlook",
-                f"Wall Street increases {symbol} price targets after strong performance"
-            ]
-        }
-        
-        # Generate 3-5 synthetic news articles
-        num_articles = random.randint(3, 5)
-        synthetic_news = []
-        
-        # Bias toward positive news for AI/tech stocks to simulate current market
-        ai_tech_symbols = ['AMD', 'NVDA', 'META', 'MSFT', 'GOOGL', 'PLTR', 'CRWD', 'SNOW']
-        
-        for i in range(num_articles):
-            # Choose catalyst type based on symbol type
-            if symbol in ai_tech_symbols:
-                catalyst_types = ['ai_tech', 'partnership', 'earnings', 'upgrade']
-                weights = [0.4, 0.3, 0.2, 0.1]  # Higher chance of AI news
-            else:
-                catalyst_types = list(news_templates.keys())
-                weights = [1/len(catalyst_types)] * len(catalyst_types)
-            
-            catalyst_type = random.choices(catalyst_types, weights=weights)[0]
-            title = random.choice(news_templates[catalyst_type])
-            
-            # Generate sentiment based on catalyst type
-            if catalyst_type in ['upgrade', 'earnings', 'product', 'contract', 'ai_tech']:
-                sentiment = random.uniform(0.3, 0.8)  # Positive news
-            elif catalyst_type == 'partnership':
-                sentiment = random.uniform(0.2, 0.6)  # Moderately positive
-            else:
-                sentiment = random.uniform(-0.2, 0.4)  # Mixed to positive
-            
-            # Create synthetic article
-            article = {
-                'title': title,
-                'summary': f"Market analysts are closely watching {symbol} following this development. " +
-                          f"The announcement is expected to have significant impact on future performance. " +
-                          f"Investors are showing increased interest in the stock.",
-                'link': f'https://finance.yahoo.com/news/{symbol.lower()}-{catalyst_type}-{i}',
-                'providerPublishTime': int((datetime.now() - timedelta(hours=random.randint(1, 24))).timestamp()),
-                'type': 'STORY'
-            }
-            
-            synthetic_news.append(article)
-        
-        return synthetic_news
+        # REMOVED: Synthetic news generation for production reliability
+        return []

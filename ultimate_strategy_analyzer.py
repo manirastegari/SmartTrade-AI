@@ -121,14 +121,10 @@ class UltimateStrategyAnalyzer:
             max_stocks=len(selected_stocks),
             symbols=selected_stocks
         )
-        
-        # Restore original training setting
+        # Filter out stocks with missing or unreliable data
+        filtered_results = [r for r in results if not r.get('synthetic_data') and not r.get('error')]
         self.analyzer.enable_training = original_training
-        
-        # Apply institutional scoring adjustments
-        adjusted_results = self._apply_institutional_adjustments(results) if results else []
-        
-        return adjusted_results
+        return filtered_results
     
     def _run_strategy_2(self) -> List[Dict]:
         """Run Strategy 2: Hedge Fund Alpha"""
@@ -152,14 +148,10 @@ class UltimateStrategyAnalyzer:
             max_stocks=len(selected_stocks),
             symbols=selected_stocks
         )
-        
-        # Restore original training setting
+        # Filter out stocks with missing or unreliable data
+        filtered_results = [r for r in results if not r.get('synthetic_data') and not r.get('error')]
         self.analyzer.enable_training = original_training
-        
-        # Apply hedge fund scoring adjustments
-        adjusted_results = self._apply_hedge_fund_adjustments(results) if results else []
-        
-        return adjusted_results
+        return filtered_results
     
     def _run_strategy_3(self) -> List[Dict]:
         """Run Strategy 3: Quant Value Hunter"""
@@ -183,14 +175,10 @@ class UltimateStrategyAnalyzer:
             max_stocks=len(selected_stocks),
             symbols=selected_stocks
         )
-        
-        # Restore original training setting
+        # Filter out stocks with missing or unreliable data
+        filtered_results = [r for r in results if not r.get('synthetic_data') and not r.get('error')]
         self.analyzer.enable_training = original_training
-        
-        # Apply quant value adjustments
-        adjusted_results = self._apply_quant_value_adjustments(results) if results else []
-        
-        return adjusted_results
+        return filtered_results
     
     def _run_strategy_4(self) -> List[Dict]:
         """Run Strategy 4: Risk-Managed Core"""
@@ -214,14 +202,10 @@ class UltimateStrategyAnalyzer:
             max_stocks=len(selected_stocks),
             symbols=selected_stocks
         )
-        
-        # Restore original training setting
+        # Filter out stocks with missing or unreliable data
+        filtered_results = [r for r in results if not r.get('synthetic_data') and not r.get('error')]
         self.analyzer.enable_training = original_training
-        
-        # Apply risk management adjustments
-        adjusted_results = self._apply_risk_management_adjustments(results) if results else []
-        
-        return adjusted_results
+        return filtered_results
     
     def _select_stocks_for_strategy(self, universe: List[str], cap_filter: str, 
                                    market_focus: str, count: int) -> List[str]:
@@ -357,96 +341,64 @@ class UltimateStrategyAnalyzer:
         
         return adjusted
     
-    def _analyze_market_conditions(self) -> Dict:
+    def _analyze_market_conditions(self):
         """
-        Analyze overall market conditions using SPY, QQQ, DIA
-        Returns market status: BULLISH, BEARISH, or NEUTRAL
+        Analyze overall market conditions, including VIX, sentiment, and asset dominance
         """
-        
-        print("\n📊 Analyzing Market Conditions...")
-        
+        print("\n🌍 Analyzing Market Conditions (with VIX, Sentiment, Asset Dominance)...")
         try:
             import yfinance as yf
-            
-            market_data = {}
-            
-            # Analyze major indices with fallback
-            indices = {
-                'SPY': 'S&P 500',
-                'QQQ': 'NASDAQ',
-                'DIA': 'Dow Jones'
+            # VIX (Volatility Index)
+            vix_ticker = yf.Ticker('^VIX')
+            vix_hist = vix_ticker.history(period='1mo')
+            vix_now = vix_hist['Close'].iloc[-1] if len(vix_hist) > 0 else None
+            # Sentiment Index (aggregate news sentiment)
+            # Use AAII or aggregate news sentiment from catalyst_detector if available
+            sentiment_score = 0.5  # Default neutral
+            if hasattr(self.analyzer, 'get_market_sentiment'):
+                sentiment_score = self.analyzer.get_market_sentiment()
+            # Asset Dominance (equity/crypto/commodity)
+            spy = yf.Ticker('SPY').history(period='1mo')['Close'].iloc[-1]
+            qqq = yf.Ticker('QQQ').history(period='1mo')['Close'].iloc[-1]
+            iwm = yf.Ticker('IWM').history(period='1mo')['Close'].iloc[-1]
+            gld = yf.Ticker('GLD').history(period='1mo')['Close'].iloc[-1]
+            btc = yf.Ticker('BTC-USD').history(period='1mo')['Close'].iloc[-1]
+            asset_dominance = {
+                'SPY': spy,
+                'QQQ': qqq,
+                'IWM': iwm,
+                'GLD': gld,
+                'BTC-USD': btc
             }
-            
-            for symbol, name in indices.items():
-                try:
-                    ticker = yf.Ticker(symbol)
-                    hist = ticker.history(period='3mo')
-                    
-                    if len(hist) > 20:
-                        # Calculate trend
-                        sma_20 = hist['Close'].rolling(20).mean().iloc[-1]
-                        sma_50 = hist['Close'].rolling(50).mean().iloc[-1] if len(hist) >= 50 else sma_20
-                        current_price = hist['Close'].iloc[-1]
-                        
-                        # Weekly return
-                        week_return = ((current_price - hist['Close'].iloc[-5]) / hist['Close'].iloc[-5]) * 100 if len(hist) >= 5 else 0
-                        
-                        market_data[symbol] = {
-                            'name': name,
-                            'price': current_price,
-                            'sma_20': sma_20,
-                            'sma_50': sma_50,
-                            'week_return': week_return,
-                            'trend': 'UP' if current_price > sma_20 > sma_50 else 'DOWN' if current_price < sma_20 < sma_50 else 'NEUTRAL'
-                        }
-                        
-                        print(f"   {symbol} ({name}): {market_data[symbol]['trend']} ({week_return:+.2f}% this week)")
-                    
-                except Exception as e:
-                    print(f"   ⚠️ Could not fetch {symbol}: {e}")
-                    continue
-            
-            # Determine overall market status
-            if not market_data:
-                print("   ⚠️ Using NEUTRAL status (no market data available)")
-                return {
-                    'status': 'NEUTRAL',
-                    'confidence': 0.5,
-                    'indices': {},
-                    'recommendation': 'Be selective with stock picks'
-                }
-            
-            # Count bullish vs bearish indices
-            bullish_count = sum(1 for data in market_data.values() if data['trend'] == 'UP')
-            bearish_count = sum(1 for data in market_data.values() if data['trend'] == 'DOWN')
-            total_count = len(market_data)
-            
-            # Determine status
-            if bullish_count >= total_count * 0.67:  # 67%+ bullish
-                status = 'BULLISH'
-                confidence = bullish_count / total_count
-                recommendation = 'Favorable for BUY signals'
-            elif bearish_count >= total_count * 0.67:  # 67%+ bearish
-                status = 'BEARISH'
-                confidence = bearish_count / total_count
-                recommendation = 'Caution: Consider HOLD or defensive positions'
-            else:
-                status = 'NEUTRAL'
-                confidence = 0.5
-                recommendation = 'Mixed signals: Be selective'
-            
+            # Market status logic
+            status = 'NEUTRAL'
+            confidence = 0.5
+            if vix_now is not None:
+                if vix_now < 15 and sentiment_score > 0.6:
+                    status = 'BULLISH'
+                    confidence = 0.8
+                elif vix_now > 25 or sentiment_score < 0.4:
+                    status = 'BEARISH'
+                    confidence = 0.8
+            # Add asset dominance context
+            market_data = {
+                'VIX': vix_now,
+                'Sentiment': sentiment_score,
+                'AssetDominance': asset_dominance
+            }
+            recommendation = 'Proceeding with caution'
+            if status == 'BULLISH':
+                recommendation = 'Aggressive buying favored'
+            elif status == 'BEARISH':
+                recommendation = 'Defensive, reduce risk'
             print(f"\n   🎯 Market Status: {status} (Confidence: {confidence*100:.0f}%)")
             print(f"   💡 Recommendation: {recommendation}")
-            
             return {
                 'status': status,
                 'confidence': confidence,
                 'indices': market_data,
-                'recommendation': recommendation,
-                'bullish_count': bullish_count,
-                'bearish_count': bearish_count
+                'recommendation': recommendation
             }
-            
         except Exception as e:
             print(f"   ⚠️ Market analysis error: {e}")
             return {
@@ -775,20 +727,36 @@ class UltimateStrategyAnalyzer:
         tier1_highest.sort(key=lambda x: x['consensus_score'], reverse=True)
         tier2_high.sort(key=lambda x: x['consensus_score'], reverse=True)
         tier3_moderate.sort(key=lambda x: x['consensus_score'], reverse=True)
-        
-        # Debug logging
-        print(f"\n📊 CONSENSUS RESULTS:")
-        print(f"   Total symbols analyzed: {len(symbol_data)}")
-        print(f"   Tier 1 (Highest): {len(tier1_highest)} stocks")
-        print(f"   Tier 2 (High): {len(tier2_high)} stocks")
-        print(f"   Tier 3 (Moderate): {len(tier3_moderate)} stocks")
-        print(f"   Total recommendations: {len(tier1_highest) + len(tier2_high) + len(tier3_moderate)}")
-        
+
+        # NEW: Only keep the most reliable stocks in each tier
+        def is_100_percent_reliable(stock):
+            # Require strong scores, high confidence, positive upside, confirmed catalyst, and no errors
+            return (
+                stock['avg_confidence'] >= 0.85 and
+                stock['avg_upside'] > 0.08 and
+                stock['quality_score'] > 70 and
+                stock.get('error') is None and
+                stock.get('consensus_score', 0) > 80 and
+                stock.get('catalyst_type') is not None and
+                stock.get('news_summary', '') != '' and
+                stock.get('breakout_confirmed', False)
+            )
+        tier1_highest = [s for s in tier1_highest if is_100_percent_reliable(s)][:6]  # Top 6 only
+        tier2_high = [s for s in tier2_high if is_100_percent_reliable(s)][:8]        # Top 8 only
+        tier3_moderate = [s for s in tier3_moderate if is_100_percent_reliable(s)][:6] # Top 6 only
+
+        # Add catalyst/news/reliability fields for Excel export
+        for stock in tier1_highest + tier2_high + tier3_moderate:
+            stock['catalyst_type'] = stock.get('catalyst_type', 'N/A')
+            stock['news_summary'] = stock.get('news_data', {}).get('articles', [{}])[0].get('summary', '') if stock.get('news_data') else ''
+            stock['reliability_flag'] = 'RELIABLE' if is_100_percent_reliable(stock) else 'CHECK'
+            stock['breakout_confirmed'] = stock.get('momentum_data', {}).get('breakout_high', False)
+
         # Create final recommendations
         final_recommendations = {
-            'tier1_highest_conviction': tier1_highest[:12],  # Top 12
-            'tier2_high_conviction': tier2_high[:15],        # Top 15
-            'tier3_moderate_conviction': tier3_moderate[:12], # Top 12
+            'tier1_highest_conviction': tier1_highest,
+            'tier2_high_conviction': tier2_high,
+            'tier3_moderate_conviction': tier3_moderate,
             'summary': {
                 'total_analyzed': sum(len(r) for r in self.strategy_results.values()),
                 'tier1_count': len(tier1_highest),
@@ -1186,7 +1154,11 @@ class UltimateStrategyAnalyzer:
                 'Strategies Count': f"{stock['num_strategies']}/4",
                 'Strategies': ', '.join(stock['strategies']),
                 'Sector': stock.get('sector', 'Unknown'),
-                'Market Cap': market_cap_str
+                'Market Cap': market_cap_str,
+                'Catalyst Type': stock.get('catalyst_type', 'N/A'),
+                'News Summary': stock.get('news_summary', ''),
+                'Reliability': stock.get('reliability_flag', 'CHECK'),
+                'Breakout Confirmed': 'YES' if stock.get('breakout_confirmed', False) else 'NO'
             })
         
         df_tier = pd.DataFrame(tier_data)
@@ -1221,7 +1193,13 @@ class UltimateStrategyAnalyzer:
                 'Stop': f"{stock['stop_loss']}%",
                 'Target': f"+{stock['take_profit']}%",
                 'Strategies': f"{stock['num_strategies']}/4",
-                'Strategy Names': ', '.join(stock['strategies'])
+                'Strategy Names': ', '.join(stock['strategies']),
+                'Sector': stock.get('sector', 'Unknown'),
+                'Market Cap': stock.get('market_cap', 'N/A'),
+                'Catalyst Type': stock.get('catalyst_type', 'N/A'),
+                'News Summary': stock.get('news_summary', ''),
+                'Reliability': stock.get('reliability_flag', 'CHECK'),
+                'Breakout Confirmed': 'YES' if stock.get('breakout_confirmed', False) else 'NO'
             })
         
         df_all = pd.DataFrame(all_data)
