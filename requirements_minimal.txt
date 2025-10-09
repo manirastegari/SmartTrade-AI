@@ -1,7 +1,7 @@
 # Minimal requirements that work on macOS
 streamlit
 pandas
-numpy
+numpy>=1.26.0,<2
 yfinance
 plotly
 matplotlib

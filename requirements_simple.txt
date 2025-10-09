@@ -1,7 +1,7 @@
 # Simplified requirements for Python 3.12 compatibility
 streamlit
 pandas
-numpy
+numpy>=1.26.0,<2
 yfinance
 plotly
 matplotlib
