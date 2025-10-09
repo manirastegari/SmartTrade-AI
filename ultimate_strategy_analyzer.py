@@ -591,6 +591,12 @@ class UltimateStrategyAnalyzer:
             dict: Recommendations organized by conviction tiers
         """
         
+        print("\n🔍 Generating Consensus Recommendations...")
+        print(f"   Strategy 1 (Institutional): {len(self.strategy_results.get('institutional', []))} stocks analyzed")
+        print(f"   Strategy 2 (Hedge Fund): {len(self.strategy_results.get('hedge_fund', []))} stocks analyzed")
+        print(f"   Strategy 3 (Quant Value): {len(self.strategy_results.get('quant_value', []))} stocks analyzed")
+        print(f"   Strategy 4 (Risk Managed): {len(self.strategy_results.get('risk_managed', []))} stocks analyzed")
+        
         # Create symbol-based lookup for all strategies
         symbol_data = {}
         
@@ -600,19 +606,19 @@ class UltimateStrategyAnalyzer:
                 if not symbol:
                     continue
                 
-                # FILTER 1: Only include BUY recommendations (more lenient)
+                # FILTER 1: Only include BUY and HOLD recommendations
                 recommendation = result.get('recommendation', '')
-                if 'BUY' not in recommendation and recommendation != 'HOLD':
-                    continue  # Allow HOLD signals too
-                
-                # FILTER 2: Only include positive expected returns (more lenient)
-                prediction = result.get('prediction', 0)
-                if prediction < -0.05:  # Allow small negative predictions
+                if recommendation not in ['STRONG BUY', 'BUY', 'HOLD']:
                     continue
                 
-                # FILTER 3: Minimum score threshold (more lenient)
+                # FILTER 2: Only include reasonable expected returns
+                prediction = result.get('prediction', 0)
+                if prediction < -0.10:  # Allow slightly negative predictions for value plays
+                    continue
+                
+                # FILTER 3: Minimum score threshold (very lenient)
                 overall_score = result.get('overall_score', 0)
-                if overall_score < 40:  # Lowered from 50
+                if overall_score < 35:  # Very lenient - just filter obvious bad picks
                     continue
                 
                 if symbol not in symbol_data:
@@ -640,6 +646,9 @@ class UltimateStrategyAnalyzer:
                 symbol_data[symbol]['upsides'].append(prediction)
                 symbol_data[symbol]['technical_scores'].append(result.get('technical_score', 0))
                 symbol_data[symbol]['fundamental_scores'].append(result.get('fundamental_score', 0))
+        
+        print(f"\n📋 After Initial Filtering:")
+        print(f"   Total unique symbols with BUY/HOLD recommendations: {len(symbol_data)}")
         
         # Calculate consensus scores
         for symbol, data in symbol_data.items():
@@ -676,15 +685,13 @@ class UltimateStrategyAnalyzer:
             avg_fundamental = np.mean(data['fundamental_scores']) if data['fundamental_scores'] else 0
             
             # Tier 1: HIGHEST CONVICTION (Institutional-Grade)
-            # Must appear in both conservative strategies (institutional + risk_managed)
-            # Plus at least one growth strategy
-            if (data['consensus_score'] > 70 and  # Lowered from 85
-                data['num_strategies'] >= 2 and  # Lowered from 3
-                ('institutional' in data['strategies'] or 'risk_managed' in data['strategies']) and
-                data['avg_upside'] > 0.05 and  # Lowered from 10% to 5%
-                data['avg_confidence'] > 0.60 and  # Lowered from 70% to 60%
-                avg_technical > 50 and  # Lowered from 60
-                avg_fundamental > 50):  # Lowered from 60
+            # Must appear in at least 2 strategies with good scores
+            if (data['consensus_score'] > 65 and  # Realistic threshold
+                data['num_strategies'] >= 2 and
+                data['avg_upside'] > 0.03 and  # 3%+ upside
+                data['avg_confidence'] > 0.55 and  # 55%+ confidence
+                avg_technical > 45 and  # 45+ technical score
+                avg_fundamental > 45):  # 45+ fundamental score
                 
                 data['conviction_tier'] = 'HIGHEST'
                 data['recommended_position'] = '4-5%'
@@ -694,13 +701,12 @@ class UltimateStrategyAnalyzer:
                 tier1_highest.append(data)
             
             # Tier 2: HIGH CONVICTION (Growth-Focused)
-            # Must have strong buy from at least one strategy
-            # Good technical and fundamental scores
-            elif (data['consensus_score'] > 60 and  # Lowered from 75
+            # Good scores with decent confidence
+            elif (data['consensus_score'] > 55 and  # Realistic threshold
                   data['num_strategies'] >= 2 and
-                  data['avg_upside'] > 0.08 and  # Lowered from 15% to 8%
-                  data['avg_confidence'] > 0.55 and  # Lowered from 65% to 55%
-                  avg_technical > 45):  # Lowered from 55
+                  data['avg_upside'] > 0.02 and  # 2%+ upside
+                  data['avg_confidence'] > 0.50 and  # 50%+ confidence
+                  avg_technical > 40):  # 40+ technical score
                 
                 data['conviction_tier'] = 'HIGH'
                 data['recommended_position'] = '2-3%'
@@ -710,11 +716,11 @@ class UltimateStrategyAnalyzer:
                 tier2_high.append(data)
             
             # Tier 3: MODERATE CONVICTION (Value Opportunities)
-            # Good scores with positive momentum
-            elif (data['consensus_score'] > 50 and  # Lowered from 65
-                  max(data['scores']) > 55 and  # Lowered from 70
-                  data['avg_upside'] > 0.03 and  # Lowered from 12% to 3%
-                  avg_fundamental > 40):  # Lowered from 50
+            # Reasonable scores with positive upside
+            elif (data['consensus_score'] > 45 and  # Realistic threshold
+                  max(data['scores']) > 50 and  # At least one strategy likes it
+                  data['avg_upside'] > 0.01 and  # 1%+ upside
+                  avg_fundamental > 35):  # 35+ fundamental score
                 
                 data['conviction_tier'] = 'MODERATE'
                 data['recommended_position'] = '1-2%'
@@ -727,30 +733,46 @@ class UltimateStrategyAnalyzer:
         tier1_highest.sort(key=lambda x: x['consensus_score'], reverse=True)
         tier2_high.sort(key=lambda x: x['consensus_score'], reverse=True)
         tier3_moderate.sort(key=lambda x: x['consensus_score'], reverse=True)
+        
+        # Debug output
+        print(f"\n📊 Initial Tier Results:")
+        print(f"   Tier 1 (Highest Conviction): {len(tier1_highest)} candidates")
+        print(f"   Tier 2 (High Conviction): {len(tier2_high)} candidates")
+        print(f"   Tier 3 (Moderate Conviction): {len(tier3_moderate)} candidates")
 
-        # NEW: Only keep the most reliable stocks in each tier
-        def is_100_percent_reliable(stock):
-            # Require strong scores, high confidence, positive upside, confirmed catalyst, and no errors
+        # Apply reasonable quality filters (much more lenient)
+        def is_good_quality(stock):
+            # Basic quality check - not overly restrictive
             return (
-                stock['avg_confidence'] >= 0.85 and
-                stock['avg_upside'] > 0.08 and
-                stock['quality_score'] > 70 and
-                stock.get('error') is None and
-                stock.get('consensus_score', 0) > 80 and
-                stock.get('catalyst_type') is not None and
-                stock.get('news_summary', '') != '' and
-                stock.get('breakout_confirmed', False)
+                stock.get('avg_confidence', 0) >= 0.50 and  # 50% confidence minimum
+                stock.get('avg_upside', 0) > 0.02 and       # 2% upside minimum
+                stock.get('quality_score', 0) > 45 and      # 45+ quality score
+                not stock.get('error') and                  # No errors
+                stock.get('consensus_score', 0) > 50        # 50+ consensus score
             )
-        tier1_highest = [s for s in tier1_highest if is_100_percent_reliable(s)][:6]  # Top 6 only
-        tier2_high = [s for s in tier2_high if is_100_percent_reliable(s)][:8]        # Top 8 only
-        tier3_moderate = [s for s in tier3_moderate if is_100_percent_reliable(s)][:6] # Top 6 only
+        
+        # Keep top stocks from each tier with basic quality filter
+        tier1_highest = [s for s in tier1_highest if is_good_quality(s)][:15]  # Top 15
+        tier2_high = [s for s in tier2_high if is_good_quality(s)][:20]        # Top 20
+        tier3_moderate = [s for s in tier3_moderate if is_good_quality(s)][:15] # Top 15
+        
+        # Debug output after filtering
+        print(f"\n✅ After Quality Filter:")
+        print(f"   Tier 1 (Highest Conviction): {len(tier1_highest)} stocks")
+        print(f"   Tier 2 (High Conviction): {len(tier2_high)} stocks")
+        print(f"   Tier 3 (Moderate Conviction): {len(tier3_moderate)} stocks")
+        print(f"   Total Recommendations: {len(tier1_highest) + len(tier2_high) + len(tier3_moderate)} stocks\n")
 
-        # Add catalyst/news/reliability fields for Excel export
+        # Add catalyst/news/reliability fields for Excel export (optional fields)
         for stock in tier1_highest + tier2_high + tier3_moderate:
             stock['catalyst_type'] = stock.get('catalyst_type', 'N/A')
-            stock['news_summary'] = stock.get('news_data', {}).get('articles', [{}])[0].get('summary', '') if stock.get('news_data') else ''
-            stock['reliability_flag'] = 'RELIABLE' if is_100_percent_reliable(stock) else 'CHECK'
-            stock['breakout_confirmed'] = stock.get('momentum_data', {}).get('breakout_high', False)
+            stock['news_summary'] = stock.get('news_data', {}).get('articles', [{}])[0].get('summary', 'N/A') if stock.get('news_data') else 'N/A'
+            # Mark as reliable if meets higher standards
+            reliable = (stock.get('avg_confidence', 0) >= 0.70 and 
+                       stock.get('avg_upside', 0) > 0.05 and 
+                       stock.get('quality_score', 0) > 60)
+            stock['reliability_flag'] = 'HIGH CONFIDENCE' if reliable else 'GOOD QUALITY'
+            stock['breakout_confirmed'] = stock.get('momentum_data', {}).get('breakout_high', False) if stock.get('momentum_data') else False
 
         # Create final recommendations
         final_recommendations = {
