@@ -44,11 +44,16 @@ class UltimateStrategyAnalyzer:
             dict: Final recommendations with complete consensus data
         """
         
+        # Track start time
+        start_time = datetime.now()
+        start_time_str = start_time.strftime("%Y-%m-%d %H:%M:%S")
+        
         if progress_callback:
             progress_callback("Starting Ultimate Strategy Analysis (2-Phase Hybrid)...", 0)
         
         print("\n" + "="*80)
         print("🏆 ULTIMATE STRATEGY - TWO-PHASE HYBRID APPROACH")
+        print(f"⏰ Analysis Started: {start_time_str}")
         print("="*80)
         
         # STEP 1: Analyze overall market conditions FIRST
@@ -114,11 +119,33 @@ class UltimateStrategyAnalyzer:
             sector_analysis
         )
         
+        # Track end time and calculate duration
+        end_time = datetime.now()
+        end_time_str = end_time.strftime("%Y-%m-%d %H:%M:%S")
+        duration = end_time - start_time
+        
+        # Format duration nicely
+        hours = int(duration.total_seconds() // 3600)
+        minutes = int((duration.total_seconds() % 3600) // 60)
+        seconds = int(duration.total_seconds() % 60)
+        duration_str = f"{hours}h {minutes}m {seconds}s" if hours > 0 else f"{minutes}m {seconds}s"
+        
+        # Add timing information to recommendations
+        final_recommendations['timing'] = {
+            'start_time': start_time_str,
+            'end_time': end_time_str,
+            'duration': duration_str,
+            'duration_seconds': int(duration.total_seconds())
+        }
+        
         if progress_callback:
             progress_callback("Ultimate Strategy Analysis Complete!", 100)
         
         print("\n" + "="*80)
         print("✅ ULTIMATE STRATEGY COMPLETE")
+        print(f"⏰ Analysis Started: {start_time_str}")
+        print(f"⏰ Analysis Completed: {end_time_str}")
+        print(f"⌛ Total Duration: {duration_str}")
         print("="*80)
         
         # Automatically export to Excel
@@ -1290,6 +1317,7 @@ class UltimateStrategyAnalyzer:
         """Create summary dashboard sheet"""
         
         summary = recommendations['summary']
+        timing = recommendations.get('timing', {})
         market_status = summary.get('market_status', 'UNKNOWN')
         market_confidence = summary.get('market_confidence', 0) * 100
         market_recommendation = summary.get('recommendation', 'N/A')
@@ -1300,6 +1328,11 @@ class UltimateStrategyAnalyzer:
             'Metric': [
                 'Analysis Date',
                 'Analysis Type',
+                '',
+                'TIMING INFORMATION',
+                'Analysis Started',
+                'Analysis Completed',
+                'Total Duration',
                 '',
                 'MARKET CONDITIONS',
                 'Market Status',
@@ -1334,6 +1367,11 @@ class UltimateStrategyAnalyzer:
             'Value': [
                 datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 'Ultimate Strategy - Market-Aware Consensus',
+                '',
+                '',
+                timing.get('start_time', 'N/A'),
+                timing.get('end_time', 'N/A'),
+                timing.get('duration', 'N/A'),
                 '',
                 '',
                 market_status,
