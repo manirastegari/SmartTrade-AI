@@ -947,21 +947,41 @@ class UltimateStrategyAnalyzer:
         print(f"   Tier 2 (High Conviction): {len(tier2_high)} candidates")
         print(f"   Tier 3 (Moderate Conviction): {len(tier3_moderate)} candidates")
 
-        # Apply reasonable quality filters (much more lenient)
-        def is_good_quality(stock):
-            # Basic quality check - not overly restrictive
+        # Apply TIER-SPECIFIC quality filters (appropriate for each tier)
+        def is_tier1_quality(stock):
+            # Tier 1 standards - highest quality
             return (
-                stock.get('avg_confidence', 0) >= 0.50 and  # 50% confidence minimum
-                stock.get('avg_upside', 0) > 0.02 and       # 2% upside minimum
-                stock.get('quality_score', 0) > 45 and      # 45+ quality score
-                not stock.get('error') and                  # No errors
-                stock.get('consensus_score', 0) > 50        # 50+ consensus score
+                stock.get('avg_confidence', 0) >= 0.50 and
+                stock.get('avg_upside', 0) > 0.02 and
+                stock.get('quality_score', 0) > 45 and
+                not stock.get('error') and
+                stock.get('consensus_score', 0) > 60  # Tier 1 threshold
             )
         
-        # Keep top stocks from each tier with basic quality filter
-        tier1_highest = [s for s in tier1_highest if is_good_quality(s)][:15]  # Top 15
-        tier2_high = [s for s in tier2_high if is_good_quality(s)][:20]        # Top 20
-        tier3_moderate = [s for s in tier3_moderate if is_good_quality(s)][:15] # Top 15
+        def is_tier2_quality(stock):
+            # Tier 2 standards - good quality
+            return (
+                stock.get('avg_confidence', 0) >= 0.45 and
+                stock.get('avg_upside', 0) > 0.01 and
+                stock.get('quality_score', 0) > 40 and
+                not stock.get('error') and
+                stock.get('consensus_score', 0) > 50  # Tier 2 threshold
+            )
+        
+        def is_tier3_quality(stock):
+            # Tier 3 standards - acceptable quality
+            return (
+                stock.get('avg_confidence', 0) >= 0.40 and
+                stock.get('avg_upside', 0) > 0.005 and  # 0.5%+ upside
+                stock.get('quality_score', 0) > 35 and
+                not stock.get('error') and
+                stock.get('consensus_score', 0) > 40  # Tier 3 threshold
+            )
+        
+        # Keep top stocks from each tier with TIER-APPROPRIATE quality filters
+        tier1_highest = [s for s in tier1_highest if is_tier1_quality(s)][:15]  # Top 15
+        tier2_high = [s for s in tier2_high if is_tier2_quality(s)][:20]        # Top 20
+        tier3_moderate = [s for s in tier3_moderate if is_tier3_quality(s)][:15] # Top 15
         
         # Debug output after filtering
         print(f"\n✅ After Quality Filter:")
