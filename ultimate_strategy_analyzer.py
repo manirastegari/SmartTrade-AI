@@ -1173,10 +1173,11 @@ class UltimateStrategyAnalyzer:
                 st.success(f"✅ Additional export created: {filename}")
     
     def _auto_export_to_excel(self, recommendations: Dict):
-        """Automatically export ultimate strategy results to Excel with proper formatting"""
+        """Automatically export ultimate strategy results to Excel with proper formatting and push to GitHub"""
         
         try:
             import os
+            import subprocess
             
             # Combine all tiers
             tier1 = recommendations['tier1_highest_conviction']
@@ -1202,6 +1203,10 @@ class UltimateStrategyAnalyzer:
             self._create_ultimate_strategy_excel(recommendations, filename)
             
             print(f"\n✅ Results automatically exported to: {filename}")
+            
+            # Automatically push to GitHub for cloud access
+            self._push_to_github(filename, timestamp)
+            
             return filename
             
         except Exception as e:
@@ -1209,6 +1214,54 @@ class UltimateStrategyAnalyzer:
             import traceback
             traceback.print_exc()
             return None
+    
+    def _push_to_github(self, filename: str, timestamp: str):
+        """
+        Automatically commit and push Excel file to GitHub for cloud access
+        """
+        try:
+            import subprocess
+            import os
+            
+            print(f"\n📤 Pushing results to GitHub for cloud access...")
+            
+            # Get current directory
+            current_dir = os.getcwd()
+            
+            # Add the Excel file to git
+            subprocess.run(['git', 'add', filename], cwd=current_dir, check=True)
+            
+            # Also add a latest copy for easy access
+            latest_filename = os.path.join('exports', 'LATEST_Ultimate_Strategy_Results.xlsx')
+            
+            # Copy the file to latest
+            import shutil
+            shutil.copy2(filename, latest_filename)
+            subprocess.run(['git', 'add', latest_filename], cwd=current_dir, check=True)
+            
+            # Create commit message with summary
+            commit_message = f"Ultimate Strategy Results - {timestamp}"
+            subprocess.run(['git', 'commit', '-m', commit_message], cwd=current_dir, check=True)
+            
+            # Push to GitHub
+            result = subprocess.run(['git', 'push'], cwd=current_dir, capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                print(f"✅ Results successfully pushed to GitHub!")
+                print(f"📂 File location: {filename}")
+                print(f"📂 Latest results: {latest_filename}")
+                print(f"🌐 Access from anywhere via your GitHub repository")
+            else:
+                print(f"⚠️ Git push failed: {result.stderr}")
+                print(f"   You can manually push later with: git push")
+                
+        except subprocess.CalledProcessError as e:
+            print(f"⚠️ Git operation failed: {e}")
+            print(f"   File saved locally at: {filename}")
+            print(f"   You can manually commit and push later")
+        except Exception as e:
+            print(f"⚠️ GitHub push error: {e}")
+            print(f"   File saved locally at: {filename}")
     
     def _create_ultimate_strategy_excel(self, recommendations: Dict, filename: str):
         """Create properly formatted Excel file for Ultimate Strategy"""
