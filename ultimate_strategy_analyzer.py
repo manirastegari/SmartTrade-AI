@@ -550,70 +550,254 @@ class UltimateStrategyAnalyzer:
     
     def _analyze_market_conditions(self):
         """
-        Analyze overall market conditions, including VIX, sentiment, and asset dominance
+        ENHANCED: Predict market direction and trend changes using technical analysis
+        Uses data already being fetched + minimal additional calls
         """
-        print("\n🌍 Analyzing Market Conditions (with VIX, Sentiment, Asset Dominance)...")
+        print("\n🌍 ENHANCED Market Analysis - Predicting Trend & Direction...")
         try:
             import yfinance as yf
-            # VIX (Volatility Index)
+            import numpy as np
+            
+            # Fetch market data (3 months for better trend analysis)
+            spy = yf.Ticker('SPY').history(period='3mo')
+            qqq = yf.Ticker('QQQ').history(period='3mo')
+            iwm = yf.Ticker('IWM').history(period='3mo')
             vix_ticker = yf.Ticker('^VIX')
-            vix_hist = vix_ticker.history(period='1mo')
-            vix_now = vix_hist['Close'].iloc[-1] if len(vix_hist) > 0 else None
-            # Sentiment Index (aggregate news sentiment)
-            # Use AAII or aggregate news sentiment from catalyst_detector if available
-            sentiment_score = 0.5  # Default neutral
-            if hasattr(self.analyzer, 'get_market_sentiment'):
-                sentiment_score = self.analyzer.get_market_sentiment()
-            # Asset Dominance (equity/crypto/commodity)
-            spy = yf.Ticker('SPY').history(period='1mo')['Close'].iloc[-1]
-            qqq = yf.Ticker('QQQ').history(period='1mo')['Close'].iloc[-1]
-            iwm = yf.Ticker('IWM').history(period='1mo')['Close'].iloc[-1]
-            gld = yf.Ticker('GLD').history(period='1mo')['Close'].iloc[-1]
-            btc = yf.Ticker('BTC-USD').history(period='1mo')['Close'].iloc[-1]
-            asset_dominance = {
-                'SPY': spy,
-                'QQQ': qqq,
-                'IWM': iwm,
-                'GLD': gld,
-                'BTC-USD': btc
-            }
-            # Market status logic
-            status = 'NEUTRAL'
-            confidence = 0.5
-            if vix_now is not None:
-                if vix_now < 15 and sentiment_score > 0.6:
-                    status = 'BULLISH'
-                    confidence = 0.8
-                elif vix_now > 25 or sentiment_score < 0.4:
-                    status = 'BEARISH'
-                    confidence = 0.8
-            # Add asset dominance context
-            market_data = {
-                'VIX': vix_now,
-                'Sentiment': sentiment_score,
-                'AssetDominance': asset_dominance
-            }
-            recommendation = 'Proceeding with caution'
-            if status == 'BULLISH':
-                recommendation = 'Aggressive buying favored'
-            elif status == 'BEARISH':
-                recommendation = 'Defensive, reduce risk'
-            print(f"\n   🎯 Market Status: {status} (Confidence: {confidence*100:.0f}%)")
-            print(f"   💡 Recommendation: {recommendation}")
+            vix_hist = vix_ticker.history(period='3mo')
+            
+            # 1. TECHNICAL INDICATORS ON SPY (Primary Market Index)
+            spy_analysis = self._calculate_market_technicals(spy)
+            
+            # 2. VIX ANALYSIS (Fear/Greed Indicator)
+            vix_now = vix_hist['Close'].iloc[-1] if len(vix_hist) > 0 else 20
+            vix_ma20 = vix_hist['Close'].rolling(20).mean().iloc[-1] if len(vix_hist) >= 20 else vix_now
+            vix_trend = "Rising Fear" if vix_now > vix_ma20 * 1.1 else "Declining Fear" if vix_now < vix_ma20 * 0.9 else "Stable"
+            
+            # 3. BREADTH ANALYSIS (Market Participation)
+            breadth = self._analyze_market_breadth(spy, qqq, iwm)
+            
+            # 4. MOMENTUM ACROSS TIMEFRAMES
+            spy_1d = ((spy['Close'].iloc[-1] - spy['Close'].iloc[-2]) / spy['Close'].iloc[-2] * 100) if len(spy) >= 2 else 0
+            spy_5d = ((spy['Close'].iloc[-1] - spy['Close'].iloc[-6]) / spy['Close'].iloc[-6] * 100) if len(spy) >= 6 else 0
+            spy_20d = ((spy['Close'].iloc[-1] - spy['Close'].iloc[-21]) / spy['Close'].iloc[-21] * 100) if len(spy) >= 21 else 0
+            
+            # 5. TREND CHANGE DETECTION (Divergences & Reversals)
+            trend_change = self._detect_trend_change(spy, vix_hist)
+            
+            # 6. PREDICTIVE SCORING (0-100)
+            market_score = self._calculate_market_score(
+                spy_analysis, vix_now, vix_trend, breadth, 
+                spy_1d, spy_5d, spy_20d, trend_change
+            )
+            
+            # 7. DETERMINE STATUS & PREDICTION
+            if market_score >= 70:
+                status = 'STRONG BULLISH'
+                confidence = 0.85
+                prediction = f"+3% to +5% upside expected"
+                action = '🟢 AGGRESSIVE BUY - Strong uptrend confirmed'
+            elif market_score >= 55:
+                status = 'BULLISH'
+                confidence = 0.70
+                prediction = f"+1% to +3% upside expected"
+                action = '🟢 BUY - Favorable conditions'
+            elif market_score >= 45:
+                status = 'NEUTRAL'
+                confidence = 0.60
+                prediction = f"-1% to +1% range expected"
+                action = '🟡 SELECTIVE - Cherry-pick best opportunities'
+            elif market_score >= 30:
+                status = 'BEARISH'
+                confidence = 0.70
+                prediction = f"-3% to -1% downside expected"
+                action = '🔴 REDUCE RISK - Defensive positioning'
+            else:
+                status = 'STRONG BEARISH'
+                confidence = 0.85
+                prediction = f"-5% to -3% downside expected"
+                action = '🔴 CASH HEAVY - Preserve capital'
+            
+            # 8. DETAILED CONSOLE OUTPUT
+            print(f"\n   📊 Market Technicals:")
+            print(f"      SPY: {spy_analysis['rsi']:.1f} RSI | {spy_analysis['macd_signal']} MACD | {spy_analysis['trend']}")
+            print(f"      Momentum: 1D={spy_1d:+.2f}% | 5D={spy_5d:+.2f}% | 20D={spy_20d:+.2f}%")
+            print(f"\n   🧠 Market Intelligence:")
+            print(f"      VIX: {vix_now:.1f} ({vix_trend})")
+            print(f"      Breadth: {breadth['status']} ({breadth['score']:.0f}/100)")
+            print(f"      Trend Change: {trend_change['signal']}")
+            print(f"\n   🎯 MARKET PREDICTION:")
+            print(f"      Status: {status}")
+            print(f"      Score: {market_score:.0f}/100 (Confidence: {confidence*100:.0f}%)")
+            print(f"      Expected Move: {prediction}")
+            print(f"      💡 Action: {action}")
+            
             return {
                 'status': status,
                 'confidence': confidence,
-                'indices': market_data,
-                'recommendation': recommendation
+                'market_score': market_score,
+                'prediction': prediction,
+                'action': action,
+                'technicals': spy_analysis,
+                'momentum': {'1d': spy_1d, '5d': spy_5d, '20d': spy_20d},
+                'vix': {'current': vix_now, 'trend': vix_trend},
+                'breadth': breadth,
+                'trend_change': trend_change,
+                'recommendation': action
             }
+            
         except Exception as e:
             print(f"   ⚠️ Market analysis error: {e}")
+            import traceback
+            traceback.print_exc()
             return {
                 'status': 'NEUTRAL',
                 'confidence': 0.5,
-                'indices': {},
+                'market_score': 50,
+                'prediction': 'Unable to predict',
+                'action': 'Proceeding with caution',
                 'recommendation': 'Proceeding with caution'
             }
+    
+    def _calculate_market_technicals(self, df):
+        """Calculate technical indicators for market timing"""
+        import numpy as np
+        
+        closes = df['Close'].values
+        
+        # RSI (14-period)
+        deltas = np.diff(closes)
+        gains = np.where(deltas > 0, deltas, 0)
+        losses = np.where(deltas < 0, -deltas, 0)
+        avg_gain = np.mean(gains[-14:]) if len(gains) >= 14 else 0
+        avg_loss = np.mean(losses[-14:]) if len(losses) >= 14 else 0.01
+        rs = avg_gain / avg_loss
+        rsi = 100 - (100 / (1 + rs))
+        
+        # MACD (12, 26, 9)
+        ema12 = df['Close'].ewm(span=12).mean()
+        ema26 = df['Close'].ewm(span=26).mean()
+        macd = ema12 - ema26
+        signal = macd.ewm(span=9).mean()
+        macd_cross = "Bullish" if macd.iloc[-1] > signal.iloc[-1] else "Bearish"
+        
+        # Moving Averages
+        ma20 = df['Close'].rolling(20).mean().iloc[-1] if len(df) >= 20 else closes[-1]
+        ma50 = df['Close'].rolling(50).mean().iloc[-1] if len(df) >= 50 else closes[-1]
+        current = closes[-1]
+        
+        trend = "Uptrend" if current > ma20 > ma50 else "Downtrend" if current < ma20 < ma50 else "Sideways"
+        
+        return {
+            'rsi': rsi,
+            'macd_signal': macd_cross,
+            'trend': trend,
+            'above_ma20': current > ma20,
+            'above_ma50': current > ma50
+        }
+    
+    def _analyze_market_breadth(self, spy, qqq, iwm):
+        """Analyze market breadth (participation across caps)"""
+        
+        # Calculate 20-day performance for each
+        spy_perf = ((spy['Close'].iloc[-1] - spy['Close'].iloc[-21]) / spy['Close'].iloc[-21] * 100) if len(spy) >= 21 else 0
+        qqq_perf = ((qqq['Close'].iloc[-1] - qqq['Close'].iloc[-21]) / qqq['Close'].iloc[-21] * 100) if len(qqq) >= 21 else 0
+        iwm_perf = ((iwm['Close'].iloc[-1] - iwm['Close'].iloc[-21]) / iwm['Close'].iloc[-21] * 100) if len(iwm) >= 21 else 0
+        
+        # Score breadth (all moving up = strong, mixed = weak)
+        positive_count = sum([1 for p in [spy_perf, qqq_perf, iwm_perf] if p > 0])
+        
+        if positive_count == 3:
+            status = "Strong (All sectors up)"
+            score = 85
+        elif positive_count == 2:
+            status = "Moderate (Most sectors up)"
+            score = 60
+        elif positive_count == 1:
+            status = "Weak (Few sectors up)"
+            score = 35
+        else:
+            status = "Very Weak (All sectors down)"
+            score = 15
+        
+        return {'status': status, 'score': score, 'positive_count': positive_count}
+    
+    def _detect_trend_change(self, spy, vix):
+        """Detect potential trend reversals using divergences"""
+        
+        # Price making new lows while VIX dropping = bullish divergence
+        # Price making new highs while VIX rising = bearish divergence
+        
+        spy_recent_high = spy['Close'].rolling(20).max().iloc[-1] if len(spy) >= 20 else spy['Close'].iloc[-1]
+        spy_recent_low = spy['Close'].rolling(20).min().iloc[-1] if len(spy) >= 20 else spy['Close'].iloc[-1]
+        spy_now = spy['Close'].iloc[-1]
+        
+        vix_ma5 = vix['Close'].rolling(5).mean().iloc[-1] if len(vix) >= 5 else vix['Close'].iloc[-1]
+        vix_now = vix['Close'].iloc[-1]
+        
+        # Detect divergences
+        if spy_now < spy_recent_low * 1.02 and vix_now < vix_ma5 * 0.9:
+            signal = "🔄 Bullish Reversal Likely (Fear subsiding at lows)"
+            confidence = 0.75
+        elif spy_now > spy_recent_high * 0.98 and vix_now > vix_ma5 * 1.1:
+            signal = "🔄 Bearish Reversal Likely (Fear rising at highs)"
+            confidence = 0.75
+        else:
+            signal = "➡️ Trend continuation expected"
+            confidence = 0.60
+        
+        return {'signal': signal, 'confidence': confidence}
+    
+    def _calculate_market_score(self, technicals, vix, vix_trend, breadth, m1d, m5d, m20d, trend_change):
+        """Calculate comprehensive market score (0-100)"""
+        
+        score = 50  # Start neutral
+        
+        # RSI component (30 points)
+        if technicals['rsi'] > 70:
+            score -= 10  # Overbought
+        elif technicals['rsi'] > 55:
+            score += 10  # Bullish but not overbought
+        elif technicals['rsi'] < 30:
+            score += 15  # Oversold = buying opportunity
+        elif technicals['rsi'] < 45:
+            score -= 10  # Bearish
+        
+        # MACD component (15 points)
+        score += 15 if technicals['macd_signal'] == 'Bullish' else -15
+        
+        # Trend component (20 points)
+        if technicals['trend'] == 'Uptrend':
+            score += 20
+        elif technicals['trend'] == 'Downtrend':
+            score -= 20
+        
+        # VIX component (15 points)
+        if vix < 15:
+            score += 15  # Low fear
+        elif vix > 25:
+            score -= 15  # High fear
+        elif vix_trend == "Declining Fear":
+            score += 10
+        elif vix_trend == "Rising Fear":
+            score -= 10
+        
+        # Breadth component (from breadth score)
+        score += (breadth['score'] - 50) * 0.3
+        
+        # Momentum component (10 points)
+        if m5d > 2 and m20d > 5:
+            score += 10  # Strong uptrend
+        elif m5d < -2 and m20d < -5:
+            score -= 10  # Strong downtrend
+        
+        # Trend change adjustment (10 points)
+        if "Bullish Reversal" in trend_change['signal']:
+            score += 10
+        elif "Bearish Reversal" in trend_change['signal']:
+            score -= 10
+        
+        # Clamp to 0-100
+        return max(0, min(100, score))
     
     def _analyze_sector_trends(self) -> Dict:
         """
