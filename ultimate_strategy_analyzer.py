@@ -30,17 +30,26 @@ class UltimateStrategyAnalyzer:
         
     def run_ultimate_strategy(self, progress_callback=None):
         """
-        Run professional grade Ultimate Strategy with market analysis
+        Run professional grade Ultimate Strategy with TWO-PHASE HYBRID approach
+        
+        PHASE 1: Fast Screening - Each strategy identifies top candidates (30 min)
+        PHASE 2: Deep Consensus - All 4 methods analyze all candidates (90 min)
+        
+        Total Time: ~2 hours (down from 5 hours)
         
         Args:
             progress_callback: Optional callback function for progress updates
             
         Returns:
-            dict: Final recommendations with market context
+            dict: Final recommendations with complete consensus data
         """
         
         if progress_callback:
-            progress_callback("Starting Ultimate Strategy Analysis...", 0)
+            progress_callback("Starting Ultimate Strategy Analysis (2-Phase Hybrid)...", 0)
+        
+        print("\n" + "="*80)
+        print("🏆 ULTIMATE STRATEGY - TWO-PHASE HYBRID APPROACH")
+        print("="*80)
         
         # STEP 1: Analyze overall market conditions FIRST
         if progress_callback:
@@ -50,7 +59,7 @@ class UltimateStrategyAnalyzer:
         
         # STEP 2: Analyze sector trends
         if progress_callback:
-            progress_callback("Analyzing sector and industry trends...", 10)
+            progress_callback("Analyzing sector and industry trends...", 8)
         
         sector_analysis = self._analyze_sector_trends()
         
@@ -58,32 +67,47 @@ class UltimateStrategyAnalyzer:
         market_status = market_analysis['status']  # BULLISH, BEARISH, NEUTRAL
         
         if progress_callback:
-            progress_callback(f"Market Status: {market_status} - Proceeding with analysis...", 15)
+            progress_callback(f"Market Status: {market_status} - Proceeding with analysis...", 10)
         
-        # STEP 4: Run all 4 strategies (optimized for speed)
+        print("\n" + "="*80)
+        print("📊 PHASE 1: FAST SCREENING - Identifying Top Candidates")
+        print("="*80)
+        
+        # PHASE 1: Fast screening - each strategy identifies its top picks
         if progress_callback:
-            progress_callback("Running Strategy 1: Institutional Consensus (300 stocks)...", 20)
+            progress_callback("PHASE 1: Strategy 1 screening (Institutional)...", 15)
         
-        self.strategy_results['institutional'] = self._run_strategy_1()
+        phase1_results = self._run_phase1_screening(progress_callback)
         
+        # Collect all unique candidate symbols
+        all_candidates = set()
+        for strategy_name, candidates in phase1_results.items():
+            all_candidates.update([c['symbol'] for c in candidates])
+        
+        print(f"\n✅ Phase 1 Complete: {len(all_candidates)} unique candidates identified")
+        print(f"   Strategy 1 (Institutional): {len(phase1_results['institutional'])} candidates")
+        print(f"   Strategy 2 (Hedge Fund): {len(phase1_results['hedge_fund'])} candidates")
+        print(f"   Strategy 3 (Quant Value): {len(phase1_results['quant_value'])} candidates")
+        print(f"   Strategy 4 (Risk Managed): {len(phase1_results['risk_managed'])} candidates")
+        
+        print("\n" + "="*80)
+        print("🔬 PHASE 2: DEEP CONSENSUS ANALYSIS - Complete 4-Way Scoring")
+        print("="*80)
+        
+        # PHASE 2: Deep analysis - run ALL 4 methods on ALL candidates
         if progress_callback:
-            progress_callback("Running Strategy 2: Hedge Fund Alpha (300 stocks)...", 40)
+            progress_callback(f"PHASE 2: Running complete 4-way analysis on {len(all_candidates)} stocks...", 50)
         
-        self.strategy_results['hedge_fund'] = self._run_strategy_2()
+        self.strategy_results = self._run_phase2_deep_consensus(
+            list(all_candidates), 
+            progress_callback
+        )
         
+        print(f"\n✅ Phase 2 Complete: All {len(all_candidates)} candidates analyzed by all 4 methods")
+        
+        # STEP 4: Generate market-aware consensus recommendations
         if progress_callback:
-            progress_callback("Running Strategy 3: Quant Value Hunter (300 stocks)...", 60)
-        
-        self.strategy_results['quant_value'] = self._run_strategy_3()
-        
-        if progress_callback:
-            progress_callback("Running Strategy 4: Risk-Managed Core (300 stocks)...", 80)
-        
-        self.strategy_results['risk_managed'] = self._run_strategy_4()
-        
-        # STEP 5: Generate market-aware consensus recommendations
-        if progress_callback:
-            progress_callback("Generating market-aware recommendations...", 90)
+            progress_callback("Generating final consensus recommendations...", 95)
         
         final_recommendations = self._generate_market_aware_consensus(
             market_analysis, 
@@ -92,6 +116,10 @@ class UltimateStrategyAnalyzer:
         
         if progress_callback:
             progress_callback("Ultimate Strategy Analysis Complete!", 100)
+        
+        print("\n" + "="*80)
+        print("✅ ULTIMATE STRATEGY COMPLETE")
+        print("="*80)
         
         # Automatically export to Excel
         self._auto_export_to_excel(final_recommendations)
@@ -252,6 +280,158 @@ class UltimateStrategyAnalyzer:
                 selected = [universe[i] for i in range(0, len(universe), step)][:count]
         
         return selected
+    
+    def _run_phase1_screening(self, progress_callback=None) -> Dict[str, List[Dict]]:
+        """
+        PHASE 1: Fast screening - each strategy identifies top candidates
+        Uses lighter analysis to quickly find promising stocks
+        
+        Returns:
+            dict: Top candidates from each strategy
+        """
+        
+        phase1_results = {}
+        universe = self.analyzer._get_expanded_stock_universe()
+        
+        # Strategy 1: Institutional - Screen all caps
+        print("\n🔍 Strategy 1: Institutional Screening...")
+        if progress_callback:
+            progress_callback("Phase 1: Institutional screening...", 15)
+        
+        institutional_stocks = self._select_stocks_for_strategy(
+            universe, 'all', 'all_markets', min(200, len(universe))
+        )
+        institutional_results = self._light_analysis(institutional_stocks, 'institutional')
+        phase1_results['institutional'] = self._get_top_candidates(institutional_results, 75)
+        
+        # Strategy 2: Hedge Fund - Screen mid/small cap
+        print("\n🔍 Strategy 2: Hedge Fund Screening...")
+        if progress_callback:
+            progress_callback("Phase 1: Hedge Fund screening...", 25)
+        
+        hedge_fund_stocks = self._select_stocks_for_strategy(
+            universe, 'mid_small', 'momentum', min(200, len(universe))
+        )
+        hedge_fund_results = self._light_analysis(hedge_fund_stocks, 'hedge_fund')
+        phase1_results['hedge_fund'] = self._get_top_candidates(hedge_fund_results, 75)
+        
+        # Strategy 3: Quant Value - Screen all caps for value
+        print("\n🔍 Strategy 3: Quant Value Screening...")
+        if progress_callback:
+            progress_callback("Phase 1: Quant Value screening...", 35)
+        
+        quant_value_stocks = self._select_stocks_for_strategy(
+            universe, 'all', 'value', min(200, len(universe))
+        )
+        quant_value_results = self._light_analysis(quant_value_stocks, 'quant_value')
+        phase1_results['quant_value'] = self._get_top_candidates(quant_value_results, 75)
+        
+        # Strategy 4: Risk Managed - Screen large cap
+        print("\n🔍 Strategy 4: Risk Managed Screening...")
+        if progress_callback:
+            progress_callback("Phase 1: Risk Managed screening...", 45)
+        
+        risk_managed_stocks = self._select_stocks_for_strategy(
+            universe, 'large', 'dividend', min(150, len(universe))
+        )
+        risk_managed_results = self._light_analysis(risk_managed_stocks, 'risk_managed')
+        phase1_results['risk_managed'] = self._get_top_candidates(risk_managed_results, 75)
+        
+        return phase1_results
+    
+    def _light_analysis(self, symbols: List[str], strategy_name: str) -> List[Dict]:
+        """
+        Light-weight analysis for Phase 1 screening
+        Faster analysis with ML training disabled
+        """
+        original_training = self.analyzer.enable_training
+        self.analyzer.enable_training = False  # Disable ML for speed
+        
+        results = self.analyzer.run_advanced_analysis(
+            max_stocks=len(symbols),
+            symbols=symbols
+        )
+        
+        self.analyzer.enable_training = original_training
+        
+        # Filter out errors and synthetic data
+        filtered = [r for r in results if not r.get('synthetic_data') and not r.get('error')]
+        return filtered
+    
+    def _get_top_candidates(self, results: List[Dict], top_n: int) -> List[Dict]:
+        """
+        Select top N candidates based on overall score and BUY signals
+        """
+        # Filter for BUY/HOLD recommendations
+        buy_signals = [
+            r for r in results 
+            if r.get('recommendation') in ['STRONG BUY', 'BUY', 'HOLD']
+            and r.get('overall_score', 0) > 40
+            and r.get('prediction', 0) > -0.10
+        ]
+        
+        # Sort by overall score
+        buy_signals.sort(key=lambda x: x.get('overall_score', 0), reverse=True)
+        
+        return buy_signals[:top_n]
+    
+    def _run_phase2_deep_consensus(self, candidate_symbols: List[str], 
+                                   progress_callback=None) -> Dict[str, List[Dict]]:
+        """
+        PHASE 2: Deep consensus analysis - comprehensive analysis with all indicators
+        Then apply 4 different strategic lenses to the same data for consensus
+        
+        This is MUCH more efficient than running 4 separate analyses
+        
+        Returns:
+            dict: Results from all 4 strategies with complete coverage
+        """
+        
+        print(f"\n🔬 Running deep consensus analysis on {len(candidate_symbols)} candidates...")
+        print(f"   Complete analysis with ML models and all indicators\n")
+        
+        # Run ONE comprehensive analysis with ML enabled
+        print("📊 Running comprehensive analysis (ML Enabled, All Indicators)...")
+        if progress_callback:
+            progress_callback(f"Phase 2: Deep analysis of {len(candidate_symbols)} candidates...", 60)
+        
+        self.analyzer.enable_training = True
+        comprehensive_results = self.analyzer.run_advanced_analysis(
+            max_stocks=len(candidate_symbols),
+            symbols=candidate_symbols
+        )
+        
+        # Filter out errors and synthetic data
+        clean_results = [r for r in comprehensive_results if not r.get('synthetic_data') and not r.get('error')]
+        
+        print(f"✅ Analysis complete: {len(clean_results)} stocks successfully analyzed")
+        print(f"\n📐 Applying 4 strategic scoring lenses...\n")
+        
+        # Apply 4 different strategic lenses to the SAME comprehensive data
+        deep_results = {}
+        
+        if progress_callback:
+            progress_callback("Phase 2: Applying strategic lenses...", 85)
+        
+        # Each strategy applies its own scoring adjustments to emphasize different aspects
+        print("   📊 Lens 1: Institutional Grade (stability & liquidity focus)")
+        deep_results['institutional'] = self._apply_institutional_adjustments(clean_results)
+        
+        print("   📊 Lens 2: Hedge Fund Alpha (momentum & growth focus)")
+        deep_results['hedge_fund'] = self._apply_hedge_fund_adjustments(clean_results)
+        
+        print("   📊 Lens 3: Quant Value Hunter (undervaluation focus)")
+        deep_results['quant_value'] = self._apply_quant_value_adjustments(clean_results)
+        
+        print("   📊 Lens 4: Risk-Managed Core (safety & dividends focus)")
+        deep_results['risk_managed'] = self._apply_risk_management_adjustments(clean_results)
+        
+        # Log coverage statistics
+        print(f"\n📈 Phase 2 Complete - All Candidates Analyzed:")
+        for strategy, results in deep_results.items():
+            print(f"   {strategy.replace('_', ' ').title()}: {len(results)} stocks with complete data")
+        
+        return deep_results
     
     def _apply_institutional_adjustments(self, results: List[Dict]) -> List[Dict]:
         """Apply institutional-focused scoring adjustments"""
