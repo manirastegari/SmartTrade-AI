@@ -1494,6 +1494,7 @@ class UltimateStrategyAnalyzer:
     def display_ultimate_strategy_results(self, recommendations: Dict):
         """
         Display ultimate strategy results in Streamlit and Console
+        Shows ALL analysis factors in easy-to-understand format
         
         Args:
             recommendations: Final recommendations from run_ultimate_strategy()
@@ -1504,9 +1505,85 @@ class UltimateStrategyAnalyzer:
         
         st.markdown("---")
         st.markdown("# 🏆 ULTIMATE STRATEGY RESULTS")
-        st.markdown("### Automated 4-Strategy Consensus Analysis")
+        st.markdown("### Professional-Grade Market Intelligence & Stock Recommendations")
         
-        # Summary metrics
+        # ===== NEW: MARKET INTELLIGENCE DASHBOARD =====
+        st.markdown("## 🌍 MARKET CONDITIONS & PREDICTION")
+        
+        market_data = recommendations.get('market_analysis', {})
+        market_score = market_data.get('market_score', 50)
+        market_status = market_data.get('status', 'NEUTRAL')
+        market_action = market_data.get('action', 'Proceeding with caution')
+        market_prediction = market_data.get('prediction', 'No prediction available')
+        
+        # Market Status Card
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            status_color = "🟢" if market_score >= 55 else "🔴" if market_score < 45 else "🟡"
+            st.metric("Market Status", f"{status_color} {market_status}", f"Score: {market_score:.0f}/100")
+        
+        with col2:
+            st.metric("Expected Move", market_prediction, "Next 1-2 weeks")
+        
+        with col3:
+            confidence = market_data.get('confidence', 0.5)
+            st.metric("Confidence", f"{confidence*100:.0f}%", "Prediction accuracy")
+        
+        # Actionable Trading Directive
+        if market_score >= 70:
+            st.success(f"### ✅ {market_action}")
+            st.info("**What to do**: Execute all tiers aggressively. Deploy 90-95% of capital. Strong market tailwind.")
+        elif market_score >= 55:
+            st.success(f"### ✅ {market_action}")
+            st.info("**What to do**: Follow normal strategy. Buy all recommended tiers. Deploy 80-85% of capital.")
+        elif market_score >= 45:
+            st.warning(f"### ⚠️ {market_action}")
+            st.info("**What to do**: Be selective. Focus on Tier 1 only. Deploy 60-70% of capital. Wait for better setups on Tier 2/3.")
+        elif market_score >= 30:
+            st.error(f"### 🔴 {market_action}")
+            st.info("**What to do**: Reduce risk. Only buy highest-quality Tier 1 stocks. Deploy 40-50% of capital. Prepare for volatility.")
+        else:
+            st.error(f"### 🔴 {market_action}")
+            st.info("**What to do**: PRESERVE CAPITAL. Stay mostly in cash (70-80%). Only buy if Tier 1 stocks drop another 5-10%. Wait for market to stabilize.")
+        
+        # Detailed Market Intelligence (Expandable)
+        with st.expander("📊 Detailed Market Intelligence (Click to expand)"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("### Technical Indicators")
+                technicals = market_data.get('technicals', {})
+                st.write(f"**RSI**: {technicals.get('rsi', 50):.1f} {'(Oversold ✅)' if technicals.get('rsi', 50) < 35 else '(Overbought ⚠️)' if technicals.get('rsi', 50) > 65 else ''}")
+                st.write(f"**MACD**: {technicals.get('macd_signal', 'Unknown')}")
+                st.write(f"**Trend**: {technicals.get('trend', 'Unknown')}")
+                
+                momentum = market_data.get('momentum', {})
+                st.write(f"**1-Day**: {momentum.get('1d', 0):+.2f}%")
+                st.write(f"**5-Day**: {momentum.get('5d', 0):+.2f}%")
+                st.write(f"**20-Day**: {momentum.get('20d', 0):+.2f}%")
+            
+            with col2:
+                st.markdown("### Institutional Signals")
+                vix_data = market_data.get('vix', {})
+                st.write(f"**VIX**: {vix_data.get('current', 20):.1f} ({vix_data.get('trend', 'Stable')})")
+                
+                breadth = market_data.get('breadth', {})
+                st.write(f"**Market Breadth**: {breadth.get('status', 'Unknown')}")
+                
+                put_call = market_data.get('put_call', {})
+                st.write(f"**Put/Call**: {put_call.get('signal', 'Neutral')}")
+                
+                internals = market_data.get('internals', {})
+                st.write(f"**Market Internals**: {internals.get('signal', 'Unknown')}")
+                
+                rotation = market_data.get('rotation', {})
+                st.write(f"**Sector Rotation**: {rotation.get('phase', 'Unknown')}")
+                st.write(f"**Leading Sector**: {rotation.get('leading_sector', 'Unknown')}")
+        
+        st.markdown("---")
+        
+        # ===== STOCK RECOMMENDATIONS =====
         summary = recommendations['summary']
         
         col1, col2, col3, col4 = st.columns(4)
@@ -1567,6 +1644,47 @@ class UltimateStrategyAnalyzer:
             
             df1 = pd.DataFrame(tier1_data)
             st.dataframe(df1, use_container_width=True, hide_index=True)
+            
+            # ===== NEW: Detailed Analysis for Each Stock (Expandable) =====
+            with st.expander("📊 Detailed Analysis for Each Tier 1 Stock (Click to expand)"):
+                for stock in tier1[:5]:  # Show details for top 5
+                    st.markdown(f"### {stock['symbol']} - {stock['company_name']}")
+                    
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        st.markdown("**📊 Technical Analysis**")
+                        st.write(f"- Technical Score: {stock.get('technical_score', 0):.0f}/100")
+                        st.write(f"- RSI: {stock.get('rsi', 50):.1f}")
+                        st.write(f"- MACD: {stock.get('macd_signal', 'Unknown')}")
+                        st.write(f"- Trend: {stock.get('trend', 'Unknown')}")
+                        st.write(f"- Volume: {stock.get('volume_signal', 'Normal')}")
+                    
+                    with col2:
+                        st.markdown("**💰 Fundamental Analysis**")
+                        st.write(f"- Fundamental Score: {stock.get('fundamental_score', 0):.0f}/100")
+                        st.write(f"- P/E Ratio: {stock.get('pe_ratio', 'N/A')}")
+                        st.write(f"- EPS Growth: {stock.get('eps_growth', 'N/A')}")
+                        st.write(f"- Revenue Growth: {stock.get('revenue_growth', 'N/A')}")
+                        st.write(f"- Debt/Equity: {stock.get('debt_to_equity', 'N/A')}")
+                    
+                    with col3:
+                        st.markdown("**🎯 Strategy Consensus**")
+                        st.write(f"- Consensus: {stock['consensus_score']:.0f}/100")
+                        st.write(f"- Strategies Agree: {stock['num_strategies']}/4")
+                        st.write(f"- Avg Confidence: {stock['avg_confidence']*100:.0f}%")
+                        st.write(f"- Expected Return: {stock['avg_upside']*100:.1f}%")
+                        st.write(f"- Risk Level: {stock.get('risk_level', 'Medium')}")
+                    
+                    st.markdown(f"**💡 Action Plan for {stock['symbol']}**:")
+                    st.success(f"""
+                    1. **Entry**: Buy at ${stock['current_price']:.2f} or better
+                    2. **Position Size**: {stock['recommended_position']} of portfolio (e.g., $5,000 on $100k)
+                    3. **Stop Loss**: Set at {stock['stop_loss']}% (${stock['current_price'] * (1 + stock['stop_loss']/100):.2f})
+                    4. **Take Profit**: Target {stock['take_profit']}% (${stock['current_price'] * (1 + stock['take_profit']/100):.2f})
+                    5. **Hold Period**: {stock.get('hold_period', '3-6 months')}
+                    """)
+                    st.markdown("---")
         else:
             st.info("No stocks met Tier 1 criteria")
         
